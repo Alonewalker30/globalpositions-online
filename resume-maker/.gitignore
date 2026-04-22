@@ -1,0 +1,7 @@
+node_modules/
+.env
+.env.local
+generated-resumes/
+metadata/
+*.pdf
+.DS_Store

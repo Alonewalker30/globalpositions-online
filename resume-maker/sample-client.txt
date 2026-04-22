@@ -1,0 +1,73 @@
+John Doe
+Senior Software Engineer | Full Stack & AI
+
+PROFESSIONAL SUMMARY:
+Experienced software engineer with 8 years building scalable systems and AI-powered products. 
+Strong background in both frontend and backend development, with growing expertise in machine learning operations.
+Known for mentoring junior engineers and leading architectural initiatives.
+
+PROFESSIONAL EXPERIENCE:
+
+Tech Lead at InnovateLabs (2022 - Present)
+- Lead 5-engineer team building ML-powered data platform
+- Architected Node.js/React stack handling 5M+ requests daily
+- Implemented ML pipeline reducing data processing time by 60%
+- Mentored 2 junior engineers who promoted to mid-level roles
+- Reduced infrastructure costs by 35% through optimization ($200K/year savings)
+
+Senior Engineer at DataFlow Systems (2019 - 2022)
+- Built real-time data processing pipeline in Python, handling 10M+ events/day
+- Designed microservices architecture with Docker/Kubernetes, enabling 10x scaling
+- Led 6-month full-stack migration project, zero downtime, 500+ users
+- Optimized PostgreSQL queries reducing query time by 45%
+
+Full Stack Engineer at CloudStartup (2017 - 2019)
+- Built React frontend and Node.js backend for customer analytics platform
+- Implemented WebSocket real-time features serving 1000+ concurrent users
+- Automated testing pipeline reducing manual QA time by 50%
+- Contributed to open-source React optimization library (500+ GitHub stars)
+
+Junior Developer at TechCorp (2016 - 2017)
+- Started career building vanilla JavaScript features
+- Learned best practices in software engineering and code quality
+
+SKILLS:
+Languages: Python, JavaScript, Go, SQL
+Frontend: React, Vue.js, HTML/CSS, Redux
+Backend: Node.js, Express, FastAPI, Django
+Databases: PostgreSQL, MongoDB, Redis
+DevOps: Docker, Kubernetes, AWS (EC2, S3, Lambda, RDS)
+ML Tools: PyTorch, TensorFlow, scikit-learn, Pandas
+Leadership: Team mentoring, architectural design, agile methodology
+Other: Git, CI/CD, Microservices, System Design, RESTful APIs
+
+EDUCATION:
+B.S. Computer Science
+State University, 2016
+GPA: 3.8/4.0
+
+CERTIFICATIONS:
+- AWS Certified Solutions Architect (2021)
+- Kubernetes CKA (2022)
+
+PROJECTS & CONTRIBUTIONS:
+- React-Perf: Open source library for React performance optimization
+  * 500+ GitHub stars
+  * 10K+ weekly NPM downloads
+  * Core maintainer
+  
+- DataViz Dashboard: Interactive data visualization platform
+  * Built with React + D3.js + Node.js
+  * Used by 50+ companies
+  * Handles 1M+ data points in real-time
+
+PUBLICATIONS & SPEAKING:
+- "Scaling Node.js Applications to Millions of Users" - Tech Blog (2023)
+- Speaker at JavaScript Conference 2023
+- Contributed to "Advanced System Design" course on Udemy
+
+KEY ACHIEVEMENTS:
+- Increased platform reliability from 99.5% to 99.95% uptime
+- Reduced page load time from 3.5s to 1.2s (60% improvement)
+- Trained and promoted 3 junior engineers to mid/senior levels
+- Led successful 6-month technical debt reduction initiative, improving velocity by 40%

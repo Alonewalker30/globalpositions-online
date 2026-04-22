@@ -1,0 +1,17 @@
+[
+  {
+    "title": "Senior Backend Engineer",
+    "description": "We're looking for a Senior Backend Engineer to lead our infrastructure team.\n\nResponsibilities:\n- Design and build scalable backend systems\n- Lead architecture decisions\n- Mentor junior engineers\n- Optimize database performance\n\nRequirements:\n- 5+ years backend engineering\n- Proficiency in Python or Go\n- System design expertise\n- Leadership experience\n- AWS or cloud platform experience",
+    "instructions": "Lead with backend infrastructure and system design. Emphasize mentoring and architecture. Use professional tone."
+  },
+  {
+    "title": "AI/ML Engineer",
+    "description": "Join our AI team to build next-generation machine learning systems.\n\nResponsibilities:\n- Build and deploy ML models\n- Optimize model performance\n- Create ML pipelines\n- Work with cross-functional teams\n\nRequirements:\n- 3+ years ML experience\n- PyTorch or TensorFlow expertise\n- Python proficiency\n- Understanding of ML ops\n- Data engineering basics",
+    "instructions": "Emphasize AI/ML projects and model deployment. Highlight any published research or open source work. Use technical but clear language."
+  },
+  {
+    "title": "Full Stack Engineer",
+    "description": "Help us build amazing user experiences.\n\nResponsibilities:\n- Build frontend and backend features\n- Own features end-to-end\n- Collaborate with design and product\n- Optimize performance\n\nRequirements:\n- 4+ years full stack experience\n- React/Vue expertise\n- Node.js or Python backend\n- SQL databases\n- Passion for user experience",
+    "instructions": "Balance frontend and backend achievements equally. Show product impact and user metrics. Use approachable, confident tone."
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "name": "resume-maker-deepseek",
+  "version": "1.0.0",
+  "description": "Intelligent resume generator using DeepSeek API",
+  "type": "module",
+  "main": "resume-maker.mjs",
+  "scripts": {
+    "start": "node resume-maker.mjs",
+    "generate": "node resume-maker.mjs generate",
+    "interactive": "node resume-maker.mjs interactive"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "chalk": "^5.3.0",
+    "inquirer": "^9.2.10",
+    "puppeteer": "^21.0.0"
+  },
+  "devDependencies": {}
+}

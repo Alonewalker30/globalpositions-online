@@ -1,82 +1,38 @@
-import React, { useState } from 'react';
-import { Send, AlertCircle } from 'lucide-react';
-import { analyzeResume } from '../services/api';
-import FileUpload from './components/FileUpload';
-import AnalysisResults from './components/AnalysisResults';
+import { useState } from 'react';
+import Sidebar, { NavPage } from './components/Sidebar';
+import TopBar from './components/TopBar';
+import DashboardPanel from './components/DashboardPanel';
+import JobsPanel from './components/JobsPanel';
+import ResumePanel from './components/ResumePanel';
+import CareerIntelPanel from './components/CareerIntelPanel';
+import AIChatPanel from './components/AIChatPanel';
+import ToastContainer from './components/Toast';
 import './styles/App.css';
 
-function App() {
-  const [resumeText, setResumeText] = useState('');
-  const [jobDescription, setJobDescription] = useState('');
-  const [results, setResults] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [companyName, setCompanyName] = useState('');
+export default function App() {
+  const [page,        setPage]        = useState<NavPage>('dashboard');
+  const [collapsed,   setCollapsed]   = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const handleAnalyze = async () => {
-    if (!resumeText.trim()) {
-      setError('Please provide your resume');
-      return;
-    }
-    if (!jobDescription.trim()) {
-      setError('Please provide the job description');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const data = await analyzeResume(resumeText, jobDescription, companyName);
-      setResults(data);
-    } catch (err: any) {
-      setError(
-        err.response?.data?.detail ||
-          err.message ||
-          'An error occurred during analysis. Make sure the backend is running.'
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+  const navigate = (p: string) => setPage(p as NavPage);
 
   return (
-    <div className="app">
-      <FileUpload onResumeText={setResumeText} onJobDescription={setJobDescription} />
+    <div className={`app-shell ${collapsed ? 'sidebar-collapsed' : ''}`}>
+      <Sidebar active={page} onChange={setPage} collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
 
-      <div className="analysis-section">
-        <div className="company-input">
-          <label>
-            <strong>Company Name (Optional)</strong>
-            <input
-              type="text"
-              placeholder="e.g., Google, Microsoft, Startup"
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-            />
-          </label>
-        </div>
+      <div className="app-main">
+        <TopBar page={page} searchQuery={searchQuery} onSearch={setSearchQuery} />
 
-        {error && (
-          <div className="error-message">
-            <AlertCircle size={20} />
-            <span>{error}</span>
-          </div>
-        )}
-
-        <button
-          className="analyze-button"
-          onClick={handleAnalyze}
-          disabled={loading || !resumeText.trim() || !jobDescription.trim()}
-        >
-          <Send size={20} />
-          {loading ? 'Analyzing...' : 'Analyze Resume'}
-        </button>
+        <main className="app-content">
+          {page === 'dashboard' && <DashboardPanel onNavigate={navigate} />}
+          {page === 'jobs'      && <JobsPanel      searchQuery={searchQuery} />}
+          {page === 'resume'    && <ResumePanel    />}
+          {page === 'career'    && <CareerIntelPanel />}
+          {page === 'copilot'   && <AIChatPanel    />}
+        </main>
       </div>
 
-      {results && <AnalysisResults data={results} loading={loading} />}
+      <ToastContainer />
     </div>
   );
 }
-
-export default App;

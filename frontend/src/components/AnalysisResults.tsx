@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { CheckCircle, AlertCircle, TrendingUp, Zap } from 'lucide-react';
+import { useState } from 'react';
+import { TrendingUp } from 'lucide-react';
 import '../styles/AnalysisResults.css';
 
 interface AnalysisResultsProps {

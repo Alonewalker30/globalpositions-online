@@ -3,13 +3,21 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 from typing import Optional
 import json
+import io
 
 from app.config import settings
 from app.modules.resume_parser import ResumeParser
 from app.modules.keyword_extractor import KeywordExtractor
 from app.modules.ats_optimizer import ATSOptimizer
 from app.modules.claude_service import ClaudeService
-from app.schemas import ResumeAnalysisRequest, AnalysisResponse
+from app.modules.career_intelligence import CareerIntelligenceService
+from app.modules.job_market_service import JobMarketService
+from app.modules.skills_advisor_service import SkillsAdvisorService
+from app.modules.industry_news_service import IndustryNewsService
+from app.modules.job_aggregator_service import JobAggregatorService
+from app.modules.trending_skills_service import TrendingSkillsService
+from pydantic import BaseModel as PydanticBaseModel
+from app.schemas import ResumeAnalysisRequest, AnalysisResponse, CareerIntelligenceRequest
 
 # Initialize FastAPI
 app = FastAPI(
@@ -32,6 +40,12 @@ resume_parser = ResumeParser()
 keyword_extractor = KeywordExtractor()
 ats_optimizer = ATSOptimizer()
 claude_service = ClaudeService()
+career_intelligence_svc = CareerIntelligenceService()
+job_market_svc = JobMarketService()
+skills_advisor_svc = SkillsAdvisorService()
+industry_news_svc = IndustryNewsService()
+job_aggregator_svc = JobAggregatorService()
+trending_skills_svc = TrendingSkillsService()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -140,16 +154,6 @@ async def upload_resume(file: UploadFile = File(...)):
     """Upload and parse resume file (PDF or DOCX)"""
     try:
         content = await file.read()
-        
-        # Determine file type and extract text
-        if file.filename.endswith(".pdf"):
-            # For now, store and return info about PDF
-            resume_text = f"PDF file uploaded: {file.filename} ({len(content)} bytes)"
-        elif file.filename.endswith(".docx"):
-            resume_text = f"DOCX file uploaded: {file.filename} ({len(content)} bytes)"
-        else:
-            raise HTTPException(status_code=400, detail="Only PDF and DOCX files are supported")
-        
         return {
             "success": True,
             "filename": file.filename,
@@ -158,6 +162,140 @@ async def upload_resume(file: UploadFile = File(...)):
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+def _extract_text_from_file(content: bytes, filename: str) -> str:
+    """Extract plain text from PDF, DOCX, or TXT bytes."""
+    fname = (filename or "").lower()
+    if fname.endswith(".pdf"):
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(io.BytesIO(content))
+            return "\n".join(page.extract_text() or "" for page in reader.pages)
+        except Exception as e:
+            raise ValueError(f"Could not read PDF: {e}")
+    elif fname.endswith(".docx"):
+        try:
+            from docx import Document
+            doc = Document(io.BytesIO(content))
+            return "\n".join(p.text for p in doc.paragraphs)
+        except Exception as e:
+            raise ValueError(f"Could not read DOCX: {e}")
+    else:
+        # TXT or plain text
+        return content.decode("utf-8", errors="replace")
+
+
+_PARSE_PROMPT = """You are a resume parser. Extract every detail from the resume below and return ONLY valid JSON — no markdown fences, no explanation.
+
+Return this exact schema (use empty string "" or [] for missing fields, never null):
+{{
+  "contact": {{
+    "name": "",
+    "email": "",
+    "phone": "",
+    "location": "",
+    "linkedin": "",
+    "github": ""
+  }},
+  "summary": "",
+  "experience": [
+    {{
+      "company": "",
+      "title": "",
+      "location": "",
+      "start": "",
+      "end": "",
+      "current": false,
+      "bullets": ["", ""]
+    }}
+  ],
+  "education": [
+    {{
+      "school": "",
+      "degree": "",
+      "field": "",
+      "start": "",
+      "end": "",
+      "gpa": ""
+    }}
+  ],
+  "skills": [],
+  "projects": [
+    {{
+      "name": "",
+      "description": "",
+      "url": "",
+      "tech": []
+    }}
+  ],
+  "certifications": []
+}}
+
+Rules:
+- Extract ALL work experiences with their bullet points verbatim
+- For dates use format like "Jan 2020" or "2020"; if currently employed set current=true and end=""
+- Put each individual skill as a separate string in the skills array
+- Extract project tech stack into the tech array
+- For linkedin/github include the full URL if present, otherwise extract the username and form the URL
+- Return ONLY the JSON object, starting with {{ and ending with }}
+
+RESUME TEXT:
+{resume_text}"""
+
+
+@app.post("/api/resume/parse-ai")
+async def parse_resume_ai(
+    file: Optional[UploadFile] = File(None),
+    resume_text: Optional[str] = Form(None),
+):
+    """
+    AI-powered resume parser. Accepts a file upload (PDF/DOCX/TXT) OR raw text.
+    Uses Claude to extract structured data into every resume builder field.
+    """
+    try:
+        # Get text
+        if file and file.filename:
+            content = await file.read()
+            text = _extract_text_from_file(content, file.filename)
+        elif resume_text:
+            text = resume_text
+        else:
+            raise HTTPException(status_code=400, detail="Provide a file or resume_text")
+
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="Could not extract text from file")
+
+        # Call AI (Groq or Anthropic)
+        prompt = _PARSE_PROMPT.format(resume_text=text[:8000])
+        raw = claude_service._chat(prompt, max_tokens=2000)
+
+        # Strip any accidental markdown fences
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        raw = raw.strip()
+
+        parsed = json.loads(raw)
+
+        # Ensure every experience/education/project has a unique id (frontend needs it)
+        import uuid
+        for item in parsed.get("experience", []):
+            item.setdefault("id", str(uuid.uuid4())[:8])
+        for item in parsed.get("education", []):
+            item.setdefault("id", str(uuid.uuid4())[:8])
+        for item in parsed.get("projects", []):
+            item.setdefault("id", str(uuid.uuid4())[:8])
+
+        return {"success": True, "parsed": parsed, "raw_text_length": len(text)}
+
+    except json.JSONDecodeError as e:
+        logger.error("Claude returned non-JSON: %s", raw[:200] if 'raw' in dir() else '')
+        raise HTTPException(status_code=500, detail=f"AI parsing failed: {e}")
+    except Exception as e:
+        logger.error("Resume AI parse error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ==================== OPTIMIZATION ENDPOINTS ====================
 @app.post("/api/optimize")
@@ -274,6 +412,177 @@ async def get_info():
             "company": "POST /api/company/research - Research company tech stack"
         }
     }
+
+# ==================== CAREER INTELLIGENCE ENDPOINTS ====================
+
+@app.post("/api/career/intelligence")
+async def get_career_intelligence(request: CareerIntelligenceRequest):
+    """
+    Full career intelligence report.
+
+    Fetches live data from Remotive, HackerNews, arXiv, and GitHub,
+    then uses Claude to synthesize actionable career insights.
+    """
+    try:
+        logger.info(f"Career intelligence request for: {request.job_title}")
+
+        # Fetch all live data in parallel-friendly sequence
+        market_data = job_market_svc.get_market_data(request.job_title, request.skills)
+        skill_resources = skills_advisor_svc.get_skill_resources(request.skills)
+        news_data = industry_news_svc.get_industry_news(request.skills, request.job_title)
+
+        live_jobs = market_data.get("live_jobs", [])
+        hn_news = news_data.get("hn_stories", [])
+        github_repos = skill_resources.get("github_repos", [])
+        arxiv_papers = skill_resources.get("arxiv_papers", [])
+
+        # Claude synthesizes everything
+        intelligence_report = career_intelligence_svc.generate_intelligence_report(
+            skills=request.skills,
+            job_title=request.job_title,
+            years_experience=request.years_experience or 0,
+            target_role=request.target_role,
+            industry=request.industry or "Technology",
+            live_jobs=live_jobs,
+            hn_news=hn_news,
+            github_repos=github_repos,
+            arxiv_papers=arxiv_papers,
+        )
+
+        # Score job matches
+        job_match_scores = career_intelligence_svc.analyze_job_match_score(
+            request.skills, live_jobs[:10]
+        )
+
+        # Annotate jobs with match scores
+        for i, job in enumerate(live_jobs[:10]):
+            score_data = next((s for s in job_match_scores if s.get("job_index") == i), {})
+            job["match_score"] = score_data.get("match_score", 0)
+            job["match_reason"] = score_data.get("match_reason", "")
+            job["apply_recommendation"] = score_data.get("apply_recommendation", "")
+
+        return {
+            "success": True,
+            "intelligence_report": intelligence_report,
+            "live_jobs": live_jobs,
+            "news": news_data,
+            "learning_resources": skill_resources,
+            "job_match_scores": job_match_scores,
+        }
+
+    except Exception as e:
+        logger.error(f"Career intelligence error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/jobs/career")
+async def get_career_jobs(query: str = "software engineer", limit: int = 80):
+    """
+    Fetch jobs with direct career-page links from Greenhouse ATS boards.
+    All results are full long-form applications — no easy-apply / job-board links.
+    Sources: Anthropic, Stripe, Databricks, Cloudflare, Datadog, Okta, MongoDB,
+             Elastic, Coinbase, Brex, Figma, GitLab, Discord, Lyft, Pinterest,
+             Twilio, Robinhood, Dropbox, Instacart, Gusto, Mercury, Vercel,
+             Amplitude, Mixpanel, PagerDuty, Fastly, Carta, Checkr, Lattice,
+             Neo4j, Twitch and more.
+    """
+    try:
+        jobs = job_aggregator_svc.get_career_jobs(query=query, limit=min(limit, 120))
+        return {"success": True, "total": len(jobs), "jobs": jobs}
+    except Exception as e:
+        logger.error("Career jobs error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/career/jobs")
+async def get_live_jobs(title: str, skills: Optional[str] = None):
+    """Fetch live remote job listings for a role."""
+    try:
+        skill_list = [s.strip() for s in skills.split(",")] if skills else []
+        data = job_market_svc.get_market_data(title, skill_list)
+        return {"success": True, **data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/career/news")
+async def get_industry_news(skills: str, job_title: str = "software engineer"):
+    """Fetch trending industry news for a skill set."""
+    try:
+        skill_list = [s.strip() for s in skills.split(",")]
+        data = industry_news_svc.get_industry_news(skill_list, job_title)
+        return {"success": True, **data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/career/resources")
+async def get_learning_resources(skills: str):
+    """Fetch GitHub repos and arXiv papers for learning."""
+    try:
+        skill_list = [s.strip() for s in skills.split(",")]
+        data = skills_advisor_svc.get_skill_resources(skill_list)
+        return {"success": True, **data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/skills/trending")
+async def get_trending_skills():
+    """Real-time skill demand scores from StackOverflow (question counts, cached 24h)."""
+    try:
+        skills = trending_skills_svc.get_trending_skills()
+        return {"success": True, "skills": skills}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class ChatRequest(PydanticBaseModel):
+    message: str
+    history: Optional[list] = []
+
+
+@app.post("/api/career/chat")
+async def career_chat(req: ChatRequest):
+    """AI Copilot conversational endpoint."""
+    try:
+        system = (
+            "You are an expert AI Career Copilot. You help professionals with job searching, "
+            "resume optimization, salary negotiation, career transitions, interview prep, and "
+            "skill development. Be concise, practical, and encouraging. Use bullet points "
+            "when listing multiple items."
+        )
+
+        if claude_service.mode == "groq":
+            msgs = [{"role": "system", "content": system}]
+            for h in (req.history or []):
+                role = h.get("role", "user")
+                text = h.get("text", "")
+                if role in ("user", "assistant") and text:
+                    msgs.append({"role": role, "content": text})
+            msgs.append({"role": "user", "content": req.message})
+            r = claude_service.client.chat.completions.create(
+                model=claude_service.model, max_tokens=1000, messages=msgs
+            )
+            reply = r.choices[0].message.content
+        else:
+            history_msgs = []
+            for h in (req.history or []):
+                role = h.get("role", "user")
+                text = h.get("text", "")
+                if role in ("user", "assistant") and text:
+                    history_msgs.append({"role": role, "content": text})
+            history_msgs.append({"role": "user", "content": req.message})
+            r = claude_service.client.messages.create(
+                model=claude_service.model, max_tokens=1000,
+                system=system, messages=history_msgs,
+            )
+            reply = r.content[0].text
+
+        return {"success": True, "reply": reply}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 if __name__ == "__main__":
     import uvicorn
