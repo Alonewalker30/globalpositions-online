@@ -68,7 +68,7 @@ class ClaudeService:
                 model=self.model,
                 max_tokens=max_tokens,
                 messages=msgs,
-                timeout=90,
+                timeout=110,
             )
             return (r.choices[0].message.content or "").strip()
         else:
