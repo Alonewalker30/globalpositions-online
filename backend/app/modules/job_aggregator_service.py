@@ -7,6 +7,7 @@ import httpx
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict
 
 logger = logging.getLogger(__name__)
@@ -244,10 +245,25 @@ def _fetch_himalayas(query_tokens: List[str]) -> List[Dict]:
     return jobs
 
 
+def _is_within_days(posted_at: str, days: int = 30) -> bool:
+    if not posted_at:
+        return True
+    try:
+        raw = str(posted_at).strip()
+        if raw.isdigit():
+            # Lever: milliseconds epoch
+            dt = datetime.fromtimestamp(int(raw) / 1000, tz=timezone.utc)
+        else:
+            dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return dt >= datetime.now(tz=timezone.utc) - timedelta(days=days)
+    except Exception:
+        return True  # include if date unparseable
+
+
 class JobAggregatorService:
 
-    def get_career_jobs(self, query: str, limit: int = 80) -> List[Dict]:
-        cache_key = f"{query.lower().strip()}:{limit}"
+    def get_career_jobs(self, query: str, limit: int = 200) -> List[Dict]:
+        cache_key = f"{query.lower().strip()}"
         cached = _CACHE.get(cache_key)
         if cached and (time.time() - cached[0]) < _CACHE_TTL:
             logger.info("Job cache hit for '%s'", query)
@@ -271,6 +287,9 @@ class JobAggregatorService:
                     all_jobs.extend(future.result())
                 except Exception as exc:
                     logger.debug("Worker error: %s", exc)
+
+        # Filter to last 30 days
+        all_jobs = [j for j in all_jobs if _is_within_days(j.get("posted_at", ""), 30)]
 
         # Deduplicate by title + company
         seen: set = set()

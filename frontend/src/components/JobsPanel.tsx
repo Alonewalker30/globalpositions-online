@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Search, ExternalLink, Loader, Briefcase, Bookmark, BookmarkCheck, Building2, MapPin, X, SlidersHorizontal } from 'lucide-react';
 import { getCareerPageJobs } from '../services/api';
 import { toast } from './Toast';
@@ -253,23 +253,29 @@ function ActiveFilters({ filters, onChange }: { filters: Filters; onChange: (f: 
   );
 }
 
+const PAGE_SIZE = 20;
+
 /* ─── Main Panel ─── */
 export default function JobsPanel({ searchQuery }: JobsPanelProps) {
-  const [query, setQuery]   = useState(searchQuery || 'software engineer');
-  const [jobs, setJobs]     = useState<Job[]>([]);
+  const [query, setQuery]     = useState(searchQuery || 'software engineer');
+  const [jobs, setJobs]       = useState<Job[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError]   = useState('');
-  const [tab, setTab]       = useState<'live' | 'saved'>('live');
+  const [error, setError]     = useState('');
+  const [tab, setTab]         = useState<'live' | 'saved'>('live');
   const [savedJobs, setSavedJobs] = useState<Job[]>(getSavedJobs);
-  const [total, setTotal]   = useState(0);
-  const [filters, setFilters] = useState<Filters>({ workType: new Set(), expLevel: new Set(), jobType: new Set(), datePosted: 'any', company: '' });
+  const [total, setTotal]     = useState(0);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [filters, setFilters] = useState<Filters>({
+    workType: new Set(), expLevel: new Set(), jobType: new Set(), datePosted: '30', company: ''
+  });
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const fetch_ = async (q: string) => {
-    setLoading(true); setError('');
-    try { const d = await getCareerPageJobs(q, 100); setJobs(d.jobs || []); setTotal(d.total || 0); }
+  const fetch_ = useCallback(async (q: string) => {
+    setLoading(true); setError(''); setVisibleCount(PAGE_SIZE);
+    try { const d = await getCareerPageJobs(q, 200); setJobs(d.jobs || []); setTotal(d.total || 0); }
     catch { setError('Failed to fetch jobs.'); }
     finally { setLoading(false); }
-  };
+  }, []);
 
   useEffect(() => { fetch_(query); }, []);
   useEffect(() => { if (searchQuery && searchQuery !== query) { setQuery(searchQuery); fetch_(searchQuery); } }, [searchQuery]);
@@ -293,7 +299,23 @@ export default function JobsPanel({ searchQuery }: JobsPanelProps) {
     return true;
   }), [jobs, filters]);
 
-  const displayJobs = tab === 'saved' ? savedJobs : filtered;
+  // Reset visible count when filters change
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [filters]);
+
+  // Infinite scroll — load more when sentinel enters viewport
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setVisibleCount(c => c + PAGE_SIZE); },
+      { rootMargin: '200px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [filtered]);
+
+  const displayJobs = tab === 'saved' ? savedJobs : filtered.slice(0, visibleCount);
+  const hasMore = tab === 'live' && visibleCount < filtered.length;
 
   return (
     <div className="jb-shell">
@@ -322,17 +344,15 @@ export default function JobsPanel({ searchQuery }: JobsPanelProps) {
       </div>
 
       <div className="jb-body">
-        {/* Filter Sidebar */}
         {tab === 'live' && (
-          <FilterSidebar filters={filters} onChange={setFilters} companies={uniqueCompanies} activeCount={activeFilterCount} />
+          <FilterSidebar filters={filters} onChange={f => { setFilters(f); setVisibleCount(PAGE_SIZE); }} companies={uniqueCompanies} activeCount={activeFilterCount} />
         )}
 
-        {/* Main content */}
         <div className="jb-main">
           {tab === 'live' && (
             <>
               <div className="jb-results-header">
-                <span className="jb-results-count">{filtered.length} jobs found</span>
+                <span className="jb-results-count">{filtered.length} jobs found · last 30 days</span>
                 <span className="jb-results-note">All links → company career pages · Manual apply only</span>
               </div>
               <ActiveFilters filters={filters} onChange={setFilters} />
@@ -352,6 +372,14 @@ export default function JobsPanel({ searchQuery }: JobsPanelProps) {
           <div className="jb-list">
             {displayJobs.map((job, i) => <JobCard key={i} job={job}/>)}
           </div>
+
+          {/* Infinite scroll sentinel */}
+          {hasMore && <div ref={sentinelRef} className="jb-load-more-sentinel">
+            <Loader size={18} className="spin" style={{ color: 'var(--text-muted)' }}/>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+              Showing {visibleCount} of {filtered.length}
+            </span>
+          </div>}
         </div>
       </div>
     </div>
