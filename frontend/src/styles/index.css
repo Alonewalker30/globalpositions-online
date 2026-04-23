@@ -4,58 +4,58 @@
 
 :root {
   /* ── Backgrounds ── */
-  --bg:           #08080E;
-  --surface:      #0D0D18;
-  --card:         #12121E;
-  --card-hover:   #181828;
-  --overlay:      #1E1E30;
+  --bg:           #F0F4FF;
+  --surface:      #FFFFFF;
+  --card:         #FFFFFF;
+  --card-hover:   #F5F7FF;
+  --overlay:      #EEF1FB;
 
   /* ── Borders ── */
-  --border:       rgba(255,255,255,.07);
-  --border-md:    rgba(255,255,255,.12);
-  --border-strong:rgba(255,255,255,.18);
+  --border:       rgba(0,0,0,.08);
+  --border-md:    rgba(0,0,0,.12);
+  --border-strong:rgba(0,0,0,.18);
 
   /* ── Accent — Indigo / Violet ── */
   --accent:       #6366F1;
   --accent-hover: #4F46E5;
-  --accent-dim:   rgba(99,102,241,.15);
-  --accent-glow:  rgba(99,102,241,.25);
+  --accent-dim:   rgba(99,102,241,.10);
+  --accent-glow:  rgba(99,102,241,.20);
   --violet:       #8B5CF6;
-  --violet-dim:   rgba(139,92,246,.15);
+  --violet-dim:   rgba(139,92,246,.10);
   --cyan:         #06B6D4;
-  --cyan-dim:     rgba(6,182,212,.12);
+  --cyan-dim:     rgba(6,182,212,.10);
 
   /* ── Text ── */
-  --text-1:       #F0F0FF;
-  --text-2:       #9090B0;
-  --text-3:       #50507A;
+  --text-1:       #111827;
+  --text-2:       #4B5563;
+  --text-3:       #9CA3AF;
 
   /* ── Semantic ── */
-  --green:        #10D988;
-  --green-dim:    rgba(16,217,136,.12);
-  --yellow:       #FBBF24;
-  --yellow-dim:   rgba(251,191,36,.12);
-  --red:          #F43F5E;
-  --red-dim:      rgba(244,63,94,.12);
+  --green:        #10B981;
+  --green-dim:    rgba(16,185,129,.10);
+  --yellow:       #F59E0B;
+  --yellow-dim:   rgba(245,158,11,.10);
+  --red:          #EF4444;
+  --red-dim:      rgba(239,68,68,.10);
 
   /* ── Legacy aliases (keeps old component refs working) ── */
-  --navy:         #0D0D18;
+  --navy:         #111827;
   --blue:         #6366F1;
   --blue-hover:   #4F46E5;
-  --blue-light:   rgba(99,102,241,.12);
-  --blue-mid:     rgba(99,102,241,.3);
-  --slate-800:    #1E1E30;
-  --slate-600:    #9090B0;
-  --slate-400:    #6060A0;
-  --slate-200:    rgba(255,255,255,.08);
-  --slate-100:    rgba(255,255,255,.05);
-  --slate-50:     #08080E;
-  --white:        #12121E;
-  --green-light:  rgba(16,217,136,.12);
-  --yellow-light: rgba(251,191,36,.12);
-  --red-light:    rgba(244,63,94,.12);
+  --blue-light:   rgba(99,102,241,.10);
+  --blue-mid:     rgba(99,102,241,.25);
+  --slate-800:    #1E293B;
+  --slate-600:    #64748B;
+  --slate-400:    #94A3B8;
+  --slate-200:    #E2E8F0;
+  --slate-100:    #F1F5F9;
+  --slate-50:     #F8FAFC;
+  --white:        #FFFFFF;
+  --green-light:  rgba(16,185,129,.10);
+  --yellow-light: rgba(245,158,11,.10);
+  --red-light:    rgba(239,68,68,.10);
   --purple:       #8B5CF6;
-  --purple-light: rgba(139,92,246,.12);
+  --purple-light: rgba(139,92,246,.10);
 
   /* ── Layout ── */
   --sidebar-w:    240px;
@@ -63,10 +63,10 @@
   --radius:       12px;
   --radius-sm:    8px;
   --radius-lg:    18px;
-  --shadow:       0 1px 3px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.05);
-  --shadow-md:    0 4px 20px rgba(0,0,0,.5), 0 0 0 1px rgba(99,102,241,.15);
-  --shadow-lg:    0 12px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(99,102,241,.2);
-  --glow:         0 0 30px rgba(99,102,241,.2);
+  --shadow:       0 1px 3px rgba(0,0,0,.07), 0 0 0 1px rgba(0,0,0,.04);
+  --shadow-md:    0 4px 16px rgba(0,0,0,.08), 0 0 0 1px rgba(99,102,241,.08);
+  --shadow-lg:    0 12px 40px rgba(0,0,0,.10), 0 0 0 1px rgba(99,102,241,.12);
+  --glow:         0 0 30px rgba(99,102,241,.12);
 
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   font-size: 14px;
@@ -83,10 +83,10 @@ input, textarea, select { font-family: inherit; font-size: 14px; }
 ul, ol { list-style: none; }
 img { max-width: 100%; }
 
-::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.2); }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,.12); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,.2); }
 
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .flex { display: flex; }
