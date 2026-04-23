@@ -1,9 +1,12 @@
-import { useEffect, useState, Suspense } from 'react';
-import { Briefcase, TrendingUp, FileText, Bot, ArrowRight, Zap, Target, BookOpen, Bookmark, BarChart2 } from 'lucide-react';
+import { useEffect, useState, Suspense, useMemo } from 'react';
+import {
+  Briefcase, TrendingUp, FileText, Bot, ArrowRight, Zap, Target,
+  BookOpen, Bookmark, BarChart2, MapPin, X, ExternalLink,
+} from 'lucide-react';
 import { getCareerPageJobs, getTrendingSkills } from '../services/api';
 import { getSavedJobs } from './JobsPanel';
 import { useTilt } from '../hooks/useTilt';
-import Globe3D from './Globe3D';
+import Globe3D, { type CityHub } from './Globe3D';
 
 interface DashboardPanelProps {
   onNavigate: (p: string) => void;
@@ -15,26 +18,34 @@ interface SkillTrend {
   score: number;
 }
 
+interface Job {
+  title: string;
+  company: string;
+  location?: string;
+  url?: string;
+  type?: string;
+}
+
 const QUICK_ACTIONS = [
-  { label: 'Find My Job Matches',   sub: 'AI-ranked live openings',     page: 'jobs',    icon: <Briefcase size={22} />,  color: 'blue'   },
-  { label: 'Analyze My Resume',     sub: 'ATS score & keyword gaps',    page: 'resume',  icon: <FileText size={22} />,   color: 'green'  },
-  { label: 'Explore Career Intel',  sub: 'Market trends & salary data', page: 'career',  icon: <TrendingUp size={22} />, color: 'purple' },
-  { label: 'Chat with AI Copilot',  sub: 'Instant career guidance',     page: 'copilot', icon: <Bot size={22} />,        color: 'orange' },
+  { label: 'Find Job Matches',      sub: 'AI-ranked live openings',     page: 'jobs',    icon: <Briefcase size={20} />,  color: 'blue'   },
+  { label: 'Optimize Resume',       sub: 'ATS score & AI rewriting',    page: 'resume',  icon: <FileText size={20} />,   color: 'green'  },
+  { label: 'Career Intelligence',   sub: 'Market trends & salary data', page: 'career',  icon: <TrendingUp size={20} />, color: 'purple' },
+  { label: 'AI Career Copilot',     sub: 'Instant career guidance',     page: 'copilot', icon: <Bot size={20} />,        color: 'orange' },
 ];
 
 const TIPS = [
-  { icon: <Zap size={16} />,      text: 'Add 3–5 measurable achievements to your resume to boost ATS score by ~30%.' },
-  { icon: <Target size={16} />,   text: 'Tailor your resume keywords to each job description — generic resumes get filtered out.' },
-  { icon: <BookOpen size={16} />, text: 'Upskilling in cloud (AWS/GCP) increases salary offers by an average of 18%.' },
+  { icon: <Zap size={15} />,      text: 'Add 3–5 measurable achievements to your resume to boost ATS score by ~30%.' },
+  { icon: <Target size={15} />,   text: 'Tailor keywords to each job description — generic resumes get filtered out.' },
+  { icon: <BookOpen size={15} />, text: 'Upskilling in cloud (AWS/GCP) increases salary offers by an average of 18%.' },
 ];
 
 const SKILL_COLORS = [
-  '#2563EB', '#7C3AED', '#059669', '#D97706', '#DC2626',
-  '#0891B2', '#4F46E5', '#16A34A', '#EA580C', '#9333EA',
+  '#6366F1','#8B5CF6','#06B6D4','#10B981','#F59E0B',
+  '#EC4899','#3B82F6','#14B8A6','#F97316','#A855F7',
 ];
 
 function TiltCard({ className, children, onClick }: { className: string; children: React.ReactNode; onClick?: () => void }) {
-  const { ref, onMouseMove, onMouseLeave } = useTilt(8);
+  const { ref, onMouseMove, onMouseLeave } = useTilt(7);
   const Tag = onClick ? 'button' : 'div';
   return (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -53,14 +64,20 @@ function TiltCard({ className, children, onClick }: { className: string; childre
 }
 
 export default function DashboardPanel({ onNavigate }: DashboardPanelProps) {
-  const [liveJobCount, setLiveJobCount] = useState<number | null>(null);
+  const [liveJobCount, setLiveJobCount]   = useState<number | null>(null);
+  const [allJobs, setAllJobs]             = useState<Job[]>([]);
   const [trendingSkills, setTrendingSkills] = useState<SkillTrend[]>([]);
   const [skillsLoading, setSkillsLoading] = useState(true);
+  const [selectedHub, setSelectedHub]     = useState<CityHub | null>(null);
   const savedCount = getSavedJobs().length;
 
   useEffect(() => {
-    getCareerPageJobs('software engineer', 120)
-      .then(d => setLiveJobCount(d.total ?? d.jobs?.length ?? 0))
+    getCareerPageJobs('software engineer', 200)
+      .then(d => {
+        const jobs = d.jobs ?? [];
+        setLiveJobCount(d.total ?? jobs.length ?? 0);
+        setAllJobs(jobs);
+      })
       .catch(() => setLiveJobCount(null));
 
     getTrendingSkills()
@@ -68,11 +85,21 @@ export default function DashboardPanel({ onNavigate }: DashboardPanelProps) {
       .catch(() => setSkillsLoading(false));
   }, []);
 
+  const cityJobs = useMemo(() => {
+    if (!selectedHub) return [];
+    const city = selectedHub.name.toLowerCase();
+    const firstWord = city.split(' ')[0];
+    return allJobs.filter(j =>
+      j.location?.toLowerCase().includes(city) ||
+      j.location?.toLowerCase().includes(firstWord)
+    ).slice(0, 20);
+  }, [selectedHub, allJobs]);
+
   const STATS = [
-    { label: 'Live Job Listings',   value: liveJobCount != null ? `${liveJobCount}+` : '…', icon: <Briefcase size={20} />,  color: 'blue'   },
-    { label: 'Saved Jobs',          value: String(savedCount),                                icon: <Bookmark size={20} />,   color: 'green'  },
-    { label: 'Skills Tracked',      value: trendingSkills.length > 0 ? `${trendingSkills.length}` : '25', icon: <TrendingUp size={20} />, color: 'purple' },
-    { label: 'AI Features Active',  value: '6',                                               icon: <Zap size={20} />,        color: 'yellow' },
+    { label: 'Live Listings',    value: liveJobCount != null ? `${liveJobCount}+` : '…', icon: <Briefcase size={18} />,  color: 'blue'   },
+    { label: 'Saved Jobs',       value: String(savedCount),                                icon: <Bookmark size={18} />,   color: 'green'  },
+    { label: 'Skills Tracked',   value: trendingSkills.length > 0 ? String(trendingSkills.length) : '25', icon: <TrendingUp size={18} />, color: 'purple' },
+    { label: 'AI Features',      value: '6',                                               icon: <Zap size={18} />,        color: 'yellow' },
   ];
 
   const MARQUEE_COMPANIES = [
@@ -83,25 +110,21 @@ export default function DashboardPanel({ onNavigate }: DashboardPanelProps) {
   ];
 
   return (
-    <div className="panel">
-      {/* Hero welcome banner — two-column with 3D globe */}
-      <div className="welcome-banner welcome-banner-3d">
-        <div className="welcome-banner-text">
-          <div className="welcome-eyebrow">AI-Powered Career Platform</div>
-          <h2 className="welcome-title">Find your next global position</h2>
-          <p className="welcome-sub">Live job listings from 67+ top companies · ATS resume optimization · AI career coaching</p>
-          <button className="btn-primary btn-lg" onClick={() => onNavigate('jobs')}>
-            Browse Live Jobs <ArrowRight size={15} />
-          </button>
+    <div className="panel dash-panel">
+
+      {/* ── Compact hero ── */}
+      <div className="dash-hero">
+        <div>
+          <div className="dash-eyebrow">AI-Powered Career Platform</div>
+          <h2 className="dash-title">Find your next global position</h2>
+          <p className="dash-sub">Live jobs from 67+ companies · ATS optimization · AI coaching</p>
         </div>
-        <div className="globe-wrap">
-          <Suspense fallback={<div className="globe-fallback" />}>
-            <Globe3D />
-          </Suspense>
-        </div>
+        <button className="btn-primary btn-lg" onClick={() => onNavigate('jobs')}>
+          Browse Live Jobs <ArrowRight size={14} />
+        </button>
       </div>
 
-      {/* Animated company marquee */}
+      {/* ── Company marquee ── */}
       <div className="marquee-wrap">
         <span className="marquee-label">Hiring from</span>
         <div className="marquee-track-outer">
@@ -113,7 +136,7 @@ export default function DashboardPanel({ onNavigate }: DashboardPanelProps) {
         </div>
       </div>
 
-      {/* Stats grid */}
+      {/* ── Stats ── */}
       <div className="stats-grid">
         {STATS.map(s => (
           <TiltCard key={s.label} className={`stat-card stat-${s.color}`}>
@@ -126,7 +149,88 @@ export default function DashboardPanel({ onNavigate }: DashboardPanelProps) {
         ))}
       </div>
 
-      {/* Quick actions */}
+      {/* ── Interactive Globe section ── */}
+      <div className="globe-section">
+        <div className="globe-section-header">
+          <div>
+            <h3 className="section-heading" style={{ marginBottom: 4 }}>Global Job Map</h3>
+            <p className="globe-hint">
+              {selectedHub
+                ? `Showing openings near ${selectedHub.name} — double-click globe to reset`
+                : 'Click any city pin to explore job openings · Double-click to resume rotation'}
+            </p>
+          </div>
+          {selectedHub && (
+            <button className="globe-reset-btn" onClick={() => setSelectedHub(null)}>
+              <X size={14} /> Clear selection
+            </button>
+          )}
+        </div>
+
+        <div className="globe-layout">
+          <div className="globe-canvas-wrap">
+            <Suspense fallback={<div className="globe-fallback" />}>
+              <Globe3D onCitySelect={hub => setSelectedHub(hub)} />
+            </Suspense>
+          </div>
+
+          {/* City jobs panel */}
+          <div className={`city-jobs-panel ${selectedHub ? 'city-jobs-panel--open' : ''}`}>
+            {selectedHub && (
+              <>
+                <div className="city-jobs-header">
+                  <MapPin size={15} className="city-pin-icon" />
+                  <div>
+                    <div className="city-jobs-title">{selectedHub.name}</div>
+                    <div className="city-jobs-count">
+                      {cityJobs.length > 0 ? `${cityJobs.length} openings found` : 'Fetching openings…'}
+                    </div>
+                  </div>
+                </div>
+                <div className="city-jobs-list">
+                  {cityJobs.length > 0 ? (
+                    cityJobs.map((j, i) => (
+                      <div key={i} className="city-job-row">
+                        <div className="city-job-logo">{j.company?.[0] ?? '?'}</div>
+                        <div className="city-job-info">
+                          <div className="city-job-title">{j.title}</div>
+                          <div className="city-job-company">{j.company}</div>
+                          {j.location && <div className="city-job-loc"><MapPin size={10} />{j.location}</div>}
+                        </div>
+                        {j.url && (
+                          <a href={j.url} target="_blank" rel="noopener noreferrer" className="city-job-apply">
+                            <ExternalLink size={12} />
+                          </a>
+                        )}
+                      </div>
+                    ))
+                  ) : allJobs.length > 0 ? (
+                    <div className="city-jobs-empty">
+                      <MapPin size={22} className="city-jobs-empty-icon" />
+                      <p>No exact matches in {selectedHub.name}.</p>
+                      <button className="btn-ghost btn-sm" onClick={() => onNavigate('jobs')}>
+                        Browse all jobs →
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="city-jobs-loading">
+                      {[...Array(4)].map((_, i) => <div key={i} className="city-job-skeleton" />)}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+            {!selectedHub && (
+              <div className="city-jobs-idle">
+                <MapPin size={28} />
+                <p>Click a city pin on the globe<br/>to see local openings</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Quick actions ── */}
       <h3 className="section-heading">Quick Actions</h3>
       <div className="quick-grid">
         {QUICK_ACTIONS.map(a => (
@@ -136,41 +240,33 @@ export default function DashboardPanel({ onNavigate }: DashboardPanelProps) {
               <span className="quick-label">{a.label}</span>
               <span className="quick-sub">{a.sub}</span>
             </div>
-            <ArrowRight size={16} className="quick-arrow" />
+            <ArrowRight size={15} className="quick-arrow" />
           </TiltCard>
         ))}
       </div>
 
-      {/* Tech Pulse — Trending Skills */}
+      {/* ── Tech Pulse ── */}
       <div className="section-heading-row">
         <h3 className="section-heading" style={{ marginBottom: 0 }}>
-          <BarChart2 size={16} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />
+          <BarChart2 size={15} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />
           Tech Pulse
         </h3>
         <span className="section-badge">Live from StackOverflow</span>
       </div>
       <div className="trending-skills-grid">
         {skillsLoading ? (
-          Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="trending-skill-card skeleton-card" />
-          ))
+          Array.from({ length: 12 }).map((_, i) => <div key={i} className="trending-skill-card skeleton-card" />)
         ) : trendingSkills.length > 0 ? (
           trendingSkills.map((s, i) => (
             <div key={s.skill} className="trending-skill-card">
               <div className="trending-skill-name">{s.skill}</div>
               <div className="trending-skill-bar-wrap">
-                <div
-                  className="trending-skill-bar"
-                  style={{ width: `${s.score}%`, background: SKILL_COLORS[i % SKILL_COLORS.length] }}
-                />
+                <div className="trending-skill-bar" style={{ width: `${s.score}%`, background: SKILL_COLORS[i % SKILL_COLORS.length] }} />
               </div>
               <div className="trending-skill-count">
-                {s.count >= 1_000_000
-                  ? `${(s.count / 1_000_000).toFixed(1)}M`
-                  : s.count >= 1_000
-                  ? `${(s.count / 1_000).toFixed(0)}K`
-                  : String(s.count)}{' '}
-                questions
+                {s.count >= 1_000_000 ? `${(s.count / 1_000_000).toFixed(1)}M`
+                  : s.count >= 1_000 ? `${(s.count / 1_000).toFixed(0)}K`
+                  : String(s.count)}{' '}questions
               </div>
             </div>
           ))
@@ -179,7 +275,7 @@ export default function DashboardPanel({ onNavigate }: DashboardPanelProps) {
         )}
       </div>
 
-      {/* Saved jobs preview */}
+      {/* ── Saved jobs preview ── */}
       {savedCount > 0 && (
         <>
           <h3 className="section-heading">Saved Jobs</h3>
@@ -191,17 +287,17 @@ export default function DashboardPanel({ onNavigate }: DashboardPanelProps) {
                   <span className="saved-preview-title">{j.title}</span>
                   <span className="saved-preview-company">{j.company}</span>
                 </div>
-                {j.url && <a href={j.url} target="_blank" rel="noopener noreferrer" className="btn-ghost btn-sm"><ArrowRight size={13} />Apply</a>}
+                {j.url && <a href={j.url} target="_blank" rel="noopener noreferrer" className="btn-ghost btn-sm"><ArrowRight size={12} />Apply</a>}
               </div>
             ))}
             {savedCount > 3 && (
-              <button className="btn-ghost btn-sm" onClick={() => onNavigate('jobs')}>View all {savedCount} saved jobs →</button>
+              <button className="btn-ghost btn-sm" onClick={() => onNavigate('jobs')}>View all {savedCount} saved →</button>
             )}
           </div>
         </>
       )}
 
-      {/* Tips */}
+      {/* ── Tips ── */}
       <h3 className="section-heading">Career Tips</h3>
       <div className="tips-list">
         {TIPS.map((t, i) => (

@@ -4,7 +4,7 @@ import {
   Sparkles, FileText, CheckCircle, XCircle, User, Briefcase,
   GraduationCap, Code2, FolderGit2, Award, AlignLeft, Mail, RotateCcw, Palette
 } from 'lucide-react';
-import { analyzeResume, apiClient, parseResumeAI } from '../services/api';
+import { analyzeResume, apiClient, parseResumeAI, rewriteResumeBullets } from '../services/api';
 
 type Template = 'classic' | 'modern' | 'minimal';
 const TEMPLATES: { id: Template; label: string }[] = [
@@ -178,6 +178,8 @@ export default function ResumePanel() {
   const [importText, setImportText]     = useState('');
   const [importing, setImporting]       = useState(false);
   const [importError, setImportError]   = useState('');
+  const [rewriting, setRewriting]       = useState(false);
+  const [rewriteMsg, setRewriteMsg]     = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const setData = useCallback((d: ResumeData) => { setData_(d); save(d); }, []);
@@ -198,6 +200,36 @@ export default function ResumePanel() {
       setMissingKw(res.keyword_match?.missing_keywords?.slice(0, 16) || []);
     } catch { /* silent */ }
     finally { setAnalyzing(false); }
+  };
+
+  /* Smart Rewrite — rewrites bullets to match JD */
+  const smartRewrite = async () => {
+    if (!jobDesc.trim()) { setAnalyzeOpen(true); return; }
+    if (data.experience.length === 0) return;
+    setRewriting(true);
+    setRewriteMsg('');
+    try {
+      const res = await rewriteResumeBullets(data, jobDesc);
+      const rewrites: Array<{ experience_index: number; bullets: string[]; title_suggestion?: string }> = res.rewrites ?? [];
+      const newExp = data.experience.map((exp, i) => {
+        const rw = rewrites.find(r => r.experience_index === i);
+        if (!rw) return exp;
+        return {
+          ...exp,
+          title: rw.title_suggestion || exp.title,
+          bullets: rw.bullets ?? exp.bullets,
+        };
+      });
+      const patch: Partial<typeof data> = { experience: newExp };
+      if (res.summary_rewrite) patch.summary = res.summary_rewrite;
+      if (res.skills_to_add?.length) {
+        const merged = [...new Set([...data.skills, ...res.skills_to_add])];
+        patch.skills = merged;
+      }
+      upd(patch);
+      setRewriteMsg(`Rewrite complete — ${rewrites.length} experience section${rewrites.length !== 1 ? 's' : ''} updated`);
+    } catch { setRewriteMsg('Rewrite failed. Check your AI key in backend settings.'); }
+    finally { setRewriting(false); }
   };
 
   /* Cover letter generator */
@@ -281,6 +313,14 @@ Write a 3-paragraph cover letter. Opening: express enthusiasm and highlight the 
           </button>
           <input ref={fileRef} type="file" accept=".txt,.pdf,.docx" style={{ display: 'none' }} onChange={handleFile}/>
           <button className="btn-ghost btn-sm" onClick={() => { setAnalyzeOpen(o => !o); setCoverOpen(false); }}><Sparkles size={14}/> Analyze vs Job</button>
+          <button
+            className="btn-primary btn-sm"
+            onClick={smartRewrite}
+            disabled={rewriting}
+            title="AI rewrites all bullets to match the job description"
+          >
+            {rewriting ? <><Loader size={13} className="spin"/>Rewriting…</> : <><Sparkles size={13}/>Smart Rewrite</>}
+          </button>
           <button className="btn-ghost btn-sm" onClick={() => { setCoverOpen(o => !o); setAnalyzeOpen(false); }}><Mail size={14}/> Cover Letter</button>
           <div className="rb-template-picker">
             <button className="btn-ghost btn-sm" onClick={() => setShowTemplates(o => !o)}><Palette size={14}/> {TEMPLATES.find(t=>t.id===template)?.label}</button>
@@ -300,6 +340,14 @@ Write a 3-paragraph cover letter. Opening: express enthusiasm and highlight the 
           <button className="btn-primary btn-sm" onClick={exportPDF}><Download size={14}/> Export PDF</button>
         </div>
       </div>
+
+      {/* ── Rewrite status banner ── */}
+      {rewriteMsg && (
+        <div className={`rb-rewrite-banner ${rewriteMsg.includes('failed') ? 'rb-rewrite-error' : 'rb-rewrite-ok'}`}>
+          <Sparkles size={13} />{rewriteMsg}
+          <button onClick={() => setRewriteMsg('')} style={{ marginLeft: 'auto', opacity: .6 }}><X_ /></button>
+        </div>
+      )}
 
       {/* ── AI Import panel ── */}
       {importOpen && (

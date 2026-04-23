@@ -544,42 +544,64 @@ class ChatRequest(PydanticBaseModel):
 
 @app.post("/api/career/chat")
 async def career_chat(req: ChatRequest):
-    """AI Copilot conversational endpoint."""
+    """AI Copilot — full conversation history, large context window."""
     try:
         system = (
-            "You are an expert AI Career Copilot. You help professionals with job searching, "
-            "resume optimization, salary negotiation, career transitions, interview prep, and "
-            "skill development. Be concise, practical, and encouraging. Use bullet points "
-            "when listing multiple items."
+            "You are an expert AI Career Copilot for GlobalPositions.online. "
+            "You help professionals with job searching, resume writing, ATS optimization, "
+            "salary negotiation, career transitions, interview prep, skill development, "
+            "and career strategy. "
+            "Be thorough, direct, and actionable. Use markdown formatting (bold, bullet points, "
+            "numbered lists, headers) to structure your answers clearly. "
+            "When the user pastes a resume or job description, analyze it in full — never truncate or summarize prematurely. "
+            "You can handle long inputs. Always give complete, production-ready advice."
         )
+
+        # Keep up to 30 history messages for full conversation context
+        history = (req.history or [])[-30:]
 
         if claude_service.mode == "groq":
             msgs = [{"role": "system", "content": system}]
-            for h in (req.history or []):
+            for h in history:
                 role = h.get("role", "user")
                 text = h.get("text", "")
                 if role in ("user", "assistant") and text:
                     msgs.append({"role": role, "content": text})
             msgs.append({"role": "user", "content": req.message})
             r = claude_service.client.chat.completions.create(
-                model=claude_service.model, max_tokens=1000, messages=msgs
+                model=claude_service.model, max_tokens=4000, messages=msgs
             )
             reply = r.choices[0].message.content
         else:
             history_msgs = []
-            for h in (req.history or []):
+            for h in history:
                 role = h.get("role", "user")
                 text = h.get("text", "")
                 if role in ("user", "assistant") and text:
                     history_msgs.append({"role": role, "content": text})
             history_msgs.append({"role": "user", "content": req.message})
             r = claude_service.client.messages.create(
-                model=claude_service.model, max_tokens=1000,
+                model=claude_service.model, max_tokens=4000,
                 system=system, messages=history_msgs,
             )
             reply = r.content[0].text
 
         return {"success": True, "reply": reply}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class ResumeRewriteRequest(PydanticBaseModel):
+    resume_data: dict
+    job_description: str
+
+
+@app.post("/api/resume/rewrite")
+async def rewrite_resume(req: ResumeRewriteRequest):
+    """Aggressively rewrite resume bullets to match the job description."""
+    try:
+        result = claude_service.rewrite_resume_for_job(req.resume_data, req.job_description)
+        return {"success": True, **result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

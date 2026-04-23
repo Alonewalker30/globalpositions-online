@@ -113,3 +113,11 @@ export const getTrendingSkills = async () => {
   const response = await apiClient.get('/skills/trending');
   return response.data;
 };
+
+export const rewriteResumeBullets = async (resumeData: object, jobDescription: string) => {
+  const response = await apiClient.post('/resume/rewrite', {
+    resume_data: resumeData,
+    job_description: jobDescription,
+  });
+  return response.data;
+};

@@ -92,7 +92,7 @@ Return ONLY the JSON object."""
         return self._parse_json(self._chat(prompt, 1500))
 
     def get_resume_improvement_suggestions(self, resume_text: str, job_description: str, job_analysis: dict) -> dict:
-        prompt = f"""You are an ATS resume optimizer. Return ONLY valid JSON:
+        prompt = f"""You are an elite ATS resume optimizer. Return ONLY valid JSON:
 {{
   "role_title_update": "",
   "key_improvements": [
@@ -105,6 +105,12 @@ Return ONLY the JSON object."""
   "ats_optimization_tips": []
 }}
 
+RULES:
+- Suggest complete bullet rewrites, not minor edits
+- Every suggested bullet must include a quantified metric (%, $, x faster, N users, etc.)
+- Use the JD's exact keywords and verb tenses
+- If the resume role does not match the JD, still provide bullets that bridge the gap
+
 RESUME:
 {resume_text[:3000]}
 
@@ -112,7 +118,50 @@ JOB DESCRIPTION:
 {job_description[:2000]}
 
 Return ONLY the JSON object."""
-        return self._parse_json(self._chat(prompt, 2000))
+        return self._parse_json(self._chat(prompt, 2500))
+
+    def rewrite_resume_for_job(self, resume_data: dict, job_description: str) -> dict:
+        """Aggressively rewrite resume bullets to match JD. Generates new bullets if needed."""
+        exp_lines = []
+        for i, exp in enumerate(resume_data.get("experience", [])):
+            exp_lines.append(f"Experience {i}: {exp.get('title','')} at {exp.get('company','')}")
+            for b in exp.get("bullets", []):
+                if b.strip():
+                    exp_lines.append(f"  - {b}")
+
+        prompt = f"""You are a top-tier resume ghostwriter. Your task: completely rewrite the candidate's resume bullets so they are a near-perfect match for the job description below.
+
+STRICT RULES:
+1. REWRITE every bullet — do not keep original wording
+2. Every bullet MUST start with a strong action verb from the JD (e.g. Led, Architected, Scaled, Shipped, Reduced)
+3. Every bullet MUST contain a quantified metric — invent a realistic one if needed (e.g. "improved latency by 40%", "served 2M+ users")
+4. Use the JD's exact tech stack terms and keywords throughout
+5. If the candidate's role/title does not match the JD role — ASSUME they were performing that work at their company and write bullets accordingly
+6. Write 4 strong bullets per experience entry
+7. The summary_rewrite should open with the exact job title from the JD
+
+JOB DESCRIPTION:
+{job_description[:3000]}
+
+CANDIDATE EXPERIENCE:
+{chr(10).join(exp_lines) or "No experience provided — generate relevant bullets from scratch based on JD"}
+
+CURRENT SKILLS:
+{", ".join(resume_data.get("skills", []))}
+
+Return ONLY valid JSON:
+{{
+  "rewrites": [
+    {{
+      "experience_index": 0,
+      "bullets": ["bullet 1", "bullet 2", "bullet 3", "bullet 4"],
+      "title_suggestion": "updated job title to display"
+    }}
+  ],
+  "summary_rewrite": "2-3 sentence professional summary targeting the exact JD role",
+  "skills_to_add": ["skill1", "skill2", "skill3"]
+}}"""
+        return self._parse_json(self._chat(prompt, 3000))
 
     def research_company_tech_stack(self, company_name: str, industry: str) -> dict:
         prompt = f"""Return ONLY valid JSON about {company_name} ({industry}):
