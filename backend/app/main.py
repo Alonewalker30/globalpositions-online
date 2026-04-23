@@ -268,8 +268,8 @@ async def parse_resume_ai(
             raise HTTPException(status_code=400, detail="Could not extract text from file")
 
         # Call AI (Groq or Anthropic)
-        prompt = _PARSE_PROMPT.format(resume_text=text[:8000])
-        raw = claude_service._chat(prompt, max_tokens=2000)
+        prompt = _PARSE_PROMPT.format(resume_text=text[:4000])
+        raw = claude_service._chat(prompt, max_tokens=1200)
 
         # Strip any accidental markdown fences
         if raw.startswith("```"):
