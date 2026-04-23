@@ -1,53 +1,81 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* Primary */
-  --blue:        #2563EB;
-  --blue-hover:  #1D4ED8;
-  --blue-light:  #EFF6FF;
-  --blue-mid:    #BFDBFE;
+  /* ── Backgrounds ── */
+  --bg:           #08080E;
+  --surface:      #0D0D18;
+  --card:         #12121E;
+  --card-hover:   #181828;
+  --overlay:      #1E1E30;
 
-  /* Neutrals */
-  --navy:        #0F172A;
-  --slate-800:   #1E293B;
-  --slate-600:   #475569;
-  --slate-400:   #94A3B8;
-  --slate-200:   #E2E8F0;
-  --slate-100:   #F1F5F9;
-  --slate-50:    #F8FAFC;
-  --white:       #FFFFFF;
+  /* ── Borders ── */
+  --border:       rgba(255,255,255,.07);
+  --border-md:    rgba(255,255,255,.12);
+  --border-strong:rgba(255,255,255,.18);
 
-  /* Semantic */
-  --green:       #10B981;
-  --green-light: #D1FAE5;
-  --yellow:      #F59E0B;
-  --yellow-light:#FEF3C7;
-  --red:         #EF4444;
-  --red-light:   #FEE2E2;
-  --purple:      #7C3AED;
-  --purple-light:#EDE9FE;
+  /* ── Accent — Indigo / Violet ── */
+  --accent:       #6366F1;
+  --accent-hover: #4F46E5;
+  --accent-dim:   rgba(99,102,241,.15);
+  --accent-glow:  rgba(99,102,241,.25);
+  --violet:       #8B5CF6;
+  --violet-dim:   rgba(139,92,246,.15);
+  --cyan:         #06B6D4;
+  --cyan-dim:     rgba(6,182,212,.12);
 
-  /* Layout */
-  --sidebar-w:   240px;
-  --topbar-h:    64px;
-  --radius:      10px;
-  --radius-sm:   6px;
-  --radius-lg:   16px;
-  --shadow:      0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
-  --shadow-md:   0 4px 12px rgba(0,0,0,.08);
-  --shadow-lg:   0 8px 24px rgba(0,0,0,.10);
+  /* ── Text ── */
+  --text-1:       #F0F0FF;
+  --text-2:       #9090B0;
+  --text-3:       #50507A;
 
-  /* Typography */
+  /* ── Semantic ── */
+  --green:        #10D988;
+  --green-dim:    rgba(16,217,136,.12);
+  --yellow:       #FBBF24;
+  --yellow-dim:   rgba(251,191,36,.12);
+  --red:          #F43F5E;
+  --red-dim:      rgba(244,63,94,.12);
+
+  /* ── Legacy aliases (keeps old component refs working) ── */
+  --navy:         #0D0D18;
+  --blue:         #6366F1;
+  --blue-hover:   #4F46E5;
+  --blue-light:   rgba(99,102,241,.12);
+  --blue-mid:     rgba(99,102,241,.3);
+  --slate-800:    #1E1E30;
+  --slate-600:    #9090B0;
+  --slate-400:    #6060A0;
+  --slate-200:    rgba(255,255,255,.08);
+  --slate-100:    rgba(255,255,255,.05);
+  --slate-50:     #08080E;
+  --white:        #12121E;
+  --green-light:  rgba(16,217,136,.12);
+  --yellow-light: rgba(251,191,36,.12);
+  --red-light:    rgba(244,63,94,.12);
+  --purple:       #8B5CF6;
+  --purple-light: rgba(139,92,246,.12);
+
+  /* ── Layout ── */
+  --sidebar-w:    240px;
+  --topbar-h:     60px;
+  --radius:       12px;
+  --radius-sm:    8px;
+  --radius-lg:    18px;
+  --shadow:       0 1px 3px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.05);
+  --shadow-md:    0 4px 20px rgba(0,0,0,.5), 0 0 0 1px rgba(99,102,241,.15);
+  --shadow-lg:    0 12px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(99,102,241,.2);
+  --glow:         0 0 30px rgba(99,102,241,.2);
+
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   font-size: 14px;
-  color: var(--navy);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 html, body, #root { width: 100%; height: 100%; }
-body { background: var(--slate-50); }
+body { background: var(--bg); color: var(--text-1); }
 
 a { text-decoration: none; color: inherit; }
 button { font-family: inherit; cursor: pointer; border: none; background: none; }
@@ -55,12 +83,11 @@ input, textarea, select { font-family: inherit; font-size: 14px; }
 ul, ol { list-style: none; }
 img { max-width: 100%; }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--slate-200); border-radius: 99px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.2); }
 
-/* Utility */
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .flex { display: flex; }
 .items-center { align-items: center; }
