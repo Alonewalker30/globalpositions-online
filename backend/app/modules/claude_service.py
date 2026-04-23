@@ -3,7 +3,7 @@ AI service — priority order: NVIDIA NIM → Groq → Anthropic.
 
 NVIDIA NIM (free, 80+ models): https://build.nvidia.com/models
   Set NVIDIA_API_KEY in Render env vars.
-  Default model: deepseek-ai/deepseek-r1 (strong reasoning, great for resume rewriting)
+  Default model: deepseek-ai/deepseek-v3.2 (strong reasoning, great for resume rewriting)
   For long-context chat you can set NVIDIA_MODEL=moonshotai/kimi-k2-instruct (128K ctx)
 
 Groq (free fallback): https://console.groq.com — 14,400 req/day
@@ -27,7 +27,7 @@ def _build_client():
 
     if nvidia_key:
         from openai import OpenAI
-        model = (settings.nvidia_model or "deepseek-ai/deepseek-r1").strip()
+        model = (settings.nvidia_model or "deepseek-ai/deepseek-v3.2").strip()
         logger.info("AI backend: NVIDIA NIM (%s)", model)
         return OpenAI(api_key=nvidia_key, base_url=_NVIDIA_BASE_URL), "nvidia"
 
