@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     environment: str = "development"
     port: int = 8000
-    cors_origins: list = ["http://localhost:3000", "http://localhost:5173", "https://globalpositions.online", "https://www.globalpositions.online"]
+    cors_origins: list = ["http://localhost:3000", "http://localhost:5173", "https://globalpositions.online", "https://www.globalpositions.online", "https://globalpositions-online.vercel.app"]
     
     class Config:
         env_file = ".env"
