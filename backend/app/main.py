@@ -570,7 +570,7 @@ async def career_chat(req: ChatRequest):
                     msgs.append({"role": role, "content": text})
             msgs.append({"role": "user", "content": req.message})
             r = claude_service.client.chat.completions.create(
-                model=claude_service.model, max_tokens=4000, messages=msgs
+                model=claude_service.model, max_tokens=2048, messages=msgs
             )
             reply = r.choices[0].message.content
         else:
@@ -589,6 +589,7 @@ async def career_chat(req: ChatRequest):
 
         return {"success": True, "reply": reply}
     except Exception as e:
+        logger.exception("career_chat error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
