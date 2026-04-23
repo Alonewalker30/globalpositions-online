@@ -295,7 +295,7 @@ async def parse_resume_ai(
         logger.error("Claude returned non-JSON: %s", raw[:200] if 'raw' in dir() else '')
         raise HTTPException(status_code=500, detail=f"AI parsing failed: {e}")
     except Exception as e:
-        logger.error("Resume AI parse error: %s", e)
+        logger.exception("Resume AI parse error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 # ==================== OPTIMIZATION ENDPOINTS ====================

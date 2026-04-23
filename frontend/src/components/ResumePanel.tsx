@@ -278,7 +278,7 @@ Write a 3-paragraph cover letter. Opening: express enthusiasm and highlight the 
       setImportOpen(false);
       setImportText('');
     } catch (e: any) {
-      setImportError(e?.response?.data?.detail || 'Parsing failed. Check your Anthropic API key.');
+      setImportError(e?.response?.data?.detail || e?.message || 'Parsing failed. Try again or check backend logs.');
     } finally { setImporting(false); }
   };
 
