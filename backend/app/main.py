@@ -5,6 +5,9 @@ from typing import Optional
 import json
 import io
 
+# Configure logging FIRST so all service-init logs are captured
+logging.basicConfig(level=logging.INFO)
+
 from app.config import settings
 from app.modules.resume_parser import ResumeParser
 from app.modules.keyword_extractor import KeywordExtractor
@@ -47,8 +50,6 @@ industry_news_svc = IndustryNewsService()
 job_aggregator_svc = JobAggregatorService()
 trending_skills_svc = TrendingSkillsService()
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ==================== HEALTH CHECK ====================
