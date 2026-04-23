@@ -80,7 +80,21 @@ class ClaudeService:
             return r.content[0].text.strip()
 
     def _fast_chat(self, prompt: str, max_tokens: int = 2500) -> str:
-        """Uses a small fast model for structured extraction tasks (parse, JSON output)."""
+        """Groq-first fast path for structured extraction (parse, JSON output).
+        Groq runs 800+ tok/s — ideal for large structured outputs.
+        Falls back to NVIDIA 8B or main backend if Groq key not set."""
+        groq_key = (settings.groq_api_key or "").strip()
+        if groq_key and not groq_key.startswith("your_"):
+            from groq import Groq
+            groq_client = Groq(api_key=groq_key)
+            r = groq_client.chat.completions.create(
+                model=_GROQ_MODEL,
+                max_tokens=max_tokens,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            logger.info("fast_chat: Groq (%s)", _GROQ_MODEL)
+            return (r.choices[0].message.content or "").strip()
+
         if self.mode == "nvidia":
             from openai import OpenAI
             fast_model = (settings.nvidia_fast_model or "meta/llama-3.1-8b-instruct").strip()
@@ -91,9 +105,9 @@ class ClaudeService:
                 messages=[{"role": "user", "content": prompt}],
                 timeout=60,
             )
-            logger.info("fast_chat used model: %s", fast_model)
+            logger.info("fast_chat: NVIDIA NIM (%s)", fast_model)
             return (r.choices[0].message.content or "").strip()
-        # For groq/anthropic fall back to regular _chat
+
         return self._chat(prompt, max_tokens)
 
     def _parse_json(self, text: str) -> dict:
