@@ -1,5 +1,9 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Search, ExternalLink, Loader, Briefcase, Bookmark, BookmarkCheck, Building2, MapPin, X, SlidersHorizontal } from 'lucide-react';
+import {
+  Search, ExternalLink, Loader, Briefcase, Bookmark, BookmarkCheck,
+  Building2, MapPin, X, SlidersHorizontal, ChevronDown, DollarSign,
+  Clock, Globe, ArrowUpDown,
+} from 'lucide-react';
 import { getCareerPageJobs } from '../services/api';
 import { toast } from './Toast';
 
@@ -16,49 +20,21 @@ export const getSavedJobs = (): Job[] => { try { return JSON.parse(localStorage.
 const persistSavedJobs = (jobs: Job[]) => localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(jobs));
 
 const LOGO_COLORS = ['#2563EB','#7C3AED','#059669','#DC2626','#D97706','#0891B2','#BE185D','#0F766E'];
-const logoColor = (n: string) => LOGO_COLORS[n.charCodeAt(0) % LOGO_COLORS.length];
+const logoColor = (n: string) => LOGO_COLORS[(n.charCodeAt(0) || 0) % LOGO_COLORS.length];
 
-// Map known company names → their domain for Clearbit logos
-const COMPANY_DOMAINS: Record<string, string> = {
-  'Anthropic':'anthropic.com','Stripe':'stripe.com','Databricks':'databricks.com',
-  'Cloudflare':'cloudflare.com','Datadog':'datadoghq.com','Okta':'okta.com',
-  'MongoDB':'mongodb.com','Elastic':'elastic.co','Coinbase':'coinbase.com',
-  'Brex':'brex.com','Figma':'figma.com','GitLab':'gitlab.com','Discord':'discord.com',
-  'Lyft':'lyft.com','Pinterest':'pinterest.com','Twilio':'twilio.com',
-  'Robinhood':'robinhood.com','Dropbox':'dropbox.com','Instacart':'instacart.com',
-  'Gusto':'gusto.com','Mercury':'mercury.com','Vercel':'vercel.com',
-  'Amplitude':'amplitude.com','Mixpanel':'mixpanel.com','PagerDuty':'pagerduty.com',
-  'Fastly':'fastly.com','Carta':'carta.com','Checkr':'checkr.com',
-  'Lattice':'lattice.com','Neo4j':'neo4j.com','Twitch':'twitch.tv',
-};
-
-function CompanyLogo({ company, directLogoUrl }: { company: string; directLogoUrl?: string }) {
+function CompanyLogo({ company, directLogoUrl, size = 40 }: { company: string; directLogoUrl?: string; size?: number }) {
   const [imgError, setImgError] = useState(false);
-  const domain = COMPANY_DOMAINS[company] || `${company.toLowerCase().replace(/[^a-z0-9]/g,'')}.com`;
+  const domain = `${company.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
   const src = directLogoUrl && !imgError ? directLogoUrl : (imgError ? null : `https://logo.clearbit.com/${domain}`);
+  const style = { width: size, height: size, borderRadius: 8, flexShrink: 0 };
   if (!src) {
-    return <div className="jb-logo" style={{ background: logoColor(company) }}>{company?.[0]?.toUpperCase()}</div>;
-  }
-  return (
-    <div className="jb-logo-wrap">
-      <img src={src} alt={company} className="jb-logo-img" onError={() => setImgError(true)} />
-    </div>
-  );
-}
-
-function JobSkeleton() {
-  return (
-    <div className="jb-card">
-      <div className="jb-card-top">
-        <div className="sk-box sk-logo-size" />
-        <div className="jb-info" style={{ gap: 8 }}>
-          <div className="sk-box" style={{ width: '60%', height: 16 }} />
-          <div className="sk-box" style={{ width: '35%', height: 12 }} />
-          <div className="sk-box" style={{ width: '80%', height: 12 }} />
-        </div>
+    return (
+      <div className="jb-logo-fallback" style={{ ...style, background: logoColor(company), display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: size * 0.4 }}>
+        {company?.[0]?.toUpperCase()}
       </div>
-    </div>
-  );
+    );
+  }
+  return <img src={src} alt={company} style={style} onError={() => setImgError(true)} />;
 }
 
 function inferWorkType(job: Job): 'Remote' | 'Hybrid' | 'On-site' {
@@ -87,19 +63,26 @@ function daysAgo(dateStr: string): number | null {
 function formatAgo(days: number | null): string {
   if (days === null) return '';
   if (days === 0) return 'Today';
-  if (days === 1) return 'Yesterday';
+  if (days === 1) return '1d ago';
   if (days < 30) return `${days}d ago`;
   return `${Math.floor(days / 30)}mo ago`;
 }
 
-/* ─── Job Card ─── */
-function JobCard({ job }: { job: Job }) {
-  const [expanded, setExpanded] = useState(false);
+const SOURCE_COLORS: Record<string, string> = {
+  Greenhouse: '#3dba6e',
+  Lever:      '#3a86ff',
+  Remotive:   '#8b5cf6',
+  Himalayas:  '#f59e0b',
+  Arbeitnow:  '#ef4444',
+};
+
+/* ─── Compact Job Card (list view) ─── */
+function JobCard({ job, selected, onClick }: { job: Job; selected: boolean; onClick: () => void }) {
   const [saved, setSaved] = useState(() => getSavedJobs().some(j => j.url === job.url));
   const workType = inferWorkType(job);
   const exp = inferExpLevel(job.title);
   const days = daysAgo(job.posted_at);
-  const workColor: Record<string, string> = { Remote: 'green', Hybrid: 'blue', 'On-site': 'slate' };
+  const sourceColor = SOURCE_COLORS[job.source || ''] || '#6b7280';
 
   const toggleSave = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -109,34 +92,119 @@ function JobCard({ job }: { job: Job }) {
   };
 
   return (
-    <div className={`jb-card ${expanded ? 'expanded' : ''}`} onClick={() => setExpanded(e => !e)}>
-      <div className="jb-card-top">
-        <CompanyLogo company={job.company} directLogoUrl={job.company_logo} />
-        <div className="jb-info">
-          <div className="jb-title">{job.title}</div>
-          <div className="jb-company"><Building2 size={12} />{job.company}</div>
-          <div className="jb-meta-row">
-            {job.location && <span className="jb-meta-item"><MapPin size={11} />{job.location}</span>}
-            <span className={`jb-work-badge wt-${workColor[workType]}`}>{workType}</span>
-            <span className="jb-exp-badge">{exp}</span>
-            {job.salary && <span className="job-salary-badge">{job.salary}</span>}
-            {days !== null && <span className="jb-date">{formatAgo(days)}</span>}
+    <div className={`jb-card ${selected ? 'jb-card--selected' : ''}`} onClick={onClick}>
+      <div className="jb-card-inner">
+        <CompanyLogo company={job.company} directLogoUrl={job.company_logo} size={38} />
+        <div className="jb-card-body">
+          <div className="jb-card-title">{job.title}</div>
+          <div className="jb-card-company">
+            <Building2 size={11} style={{ flexShrink: 0 }} />
+            {job.company}
           </div>
-          {job.tags?.filter(Boolean).length > 0 && (
-            <div className="jb-tags">{job.tags.filter(Boolean).slice(0, 3).map((t, i) => <span key={i} className="tag">{t}</span>)}</div>
-          )}
+          <div className="jb-card-meta">
+            {job.location && <span className="jb-meta-chip"><MapPin size={10} />{job.location}</span>}
+            <span className={`jb-work-chip wt-${workType.toLowerCase().replace('-','')}`}>{workType}</span>
+            <span className="jb-exp-chip">{exp}</span>
+            {job.salary && <span className="jb-salary-chip"><DollarSign size={10}/>{job.salary}</span>}
+          </div>
+          <div className="jb-card-footer">
+            <span className="jb-source-dot" style={{ background: sourceColor }} />
+            <span className="jb-source-label">{job.source}</span>
+            {days !== null && <span className="jb-date-label"><Clock size={10}/>{formatAgo(days)}</span>}
+          </div>
         </div>
-        <button className={`bookmark-btn ${saved ? 'saved' : ''}`} onClick={toggleSave}>{saved ? <BookmarkCheck size={15}/> : <Bookmark size={15}/>}</button>
+        <button className={`bookmark-btn ${saved ? 'saved' : ''}`} onClick={toggleSave}>
+          {saved ? <BookmarkCheck size={14}/> : <Bookmark size={14}/>}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Job Detail Panel ─── */
+function JobDetailPanel({ job, onClose }: { job: Job; onClose: () => void }) {
+  const [saved, setSaved] = useState(() => getSavedJobs().some(j => j.url === job.url));
+  const workType = inferWorkType(job);
+  const exp = inferExpLevel(job.title);
+  const days = daysAgo(job.posted_at);
+  const sourceColor = SOURCE_COLORS[job.source || ''] || '#6b7280';
+
+  const toggleSave = () => {
+    const cur = getSavedJobs();
+    if (saved) { persistSavedJobs(cur.filter(j => j.url !== job.url)); setSaved(false); toast('Removed', 'info'); }
+    else { persistSavedJobs([...cur, job]); setSaved(true); toast('Saved!', 'success'); }
+  };
+
+  return (
+    <div className="jb-detail">
+      <div className="jb-detail-header">
+        <button className="jb-detail-close" onClick={onClose}><X size={16}/></button>
+        <div className="jb-detail-logo">
+          <CompanyLogo company={job.company} directLogoUrl={job.company_logo} size={52} />
+        </div>
+        <div className="jb-detail-title">{job.title}</div>
+        <div className="jb-detail-company">
+          <Building2 size={13}/> {job.company}
+        </div>
+        <div className="jb-detail-meta">
+          {job.location && <span className="jb-meta-chip"><MapPin size={11}/>{job.location}</span>}
+          <span className={`jb-work-chip wt-${workType.toLowerCase().replace('-','')}`}>{workType}</span>
+          <span className="jb-exp-chip">{exp}</span>
+          {job.salary && <span className="jb-salary-chip"><DollarSign size={11}/>{job.salary}</span>}
+        </div>
+        <div className="jb-detail-source">
+          <span className="jb-source-dot" style={{ background: sourceColor }}/>
+          <span>{job.source}</span>
+          {days !== null && <span style={{ color: 'var(--text-3)' }}> · {formatAgo(days)}</span>}
+        </div>
+
+        {job.tags?.filter(Boolean).length > 0 && (
+          <div className="jb-detail-tags">
+            {job.tags.filter(Boolean).map((t, i) => <span key={i} className="tag">{t}</span>)}
+          </div>
+        )}
+
+        <div className="jb-detail-actions">
+          <a href={job.url} target="_blank" rel="noopener noreferrer" className="btn-primary jb-apply-btn">
+            Apply Now <ExternalLink size={13}/>
+          </a>
+          <button className={`jb-save-btn ${saved ? 'saved' : ''}`} onClick={toggleSave}>
+            {saved ? <><BookmarkCheck size={14}/> Saved</> : <><Bookmark size={14}/> Save</>}
+          </button>
+        </div>
       </div>
 
-      {expanded && (
-        <div className="jb-expand" onClick={e => e.stopPropagation()}>
-          <p className="jb-expand-note">Full career-page application at {job.company} — no easy apply.</p>
-          <a href={job.url} target="_blank" rel="noopener noreferrer" className="btn-primary btn-sm">
-            Apply at {job.company} <ExternalLink size={12}/>
+      <div className="jb-detail-body">
+        <div className="jb-detail-section">
+          <div className="jb-detail-section-title">About this role</div>
+          <p className="jb-detail-desc">
+            This is a <strong>{job.title}</strong> position at <strong>{job.company}</strong>.
+            {job.location && <> Located in <strong>{job.location}</strong>.</>}
+            {' '}Work type: <strong>{workType}</strong>. Experience level: <strong>{exp}</strong>.
+            {job.salary && <> Compensation: <strong>{job.salary}</strong>.</>}
+          </p>
+          <p className="jb-detail-note">
+            Click "Apply Now" to view the full job description and apply directly on the company's career page.
+          </p>
+        </div>
+
+        {job.tags?.filter(Boolean).length > 0 && (
+          <div className="jb-detail-section">
+            <div className="jb-detail-section-title">Skills & Keywords</div>
+            <div className="jb-detail-tags">
+              {job.tags.filter(Boolean).map((t, i) => <span key={i} className="tag">{t}</span>)}
+            </div>
+          </div>
+        )}
+
+        <div className="jb-detail-section">
+          <div className="jb-detail-section-title">How to Apply</div>
+          <p className="jb-detail-note">This listing links directly to <strong>{job.company}'s</strong> career page via {job.source}. You'll apply through their official portal — no middleman.</p>
+          <a href={job.url} target="_blank" rel="noopener noreferrer" className="btn-primary jb-apply-btn" style={{ display: 'inline-flex', marginTop: 8 }}>
+            View Full Job & Apply <ExternalLink size={13}/>
           </a>
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -147,87 +215,106 @@ interface Filters {
   expLevel: Set<string>;
   jobType: Set<string>;
   datePosted: string;
-  company: string;
+  location: string;
+  source: Set<string>;
 }
 
-const WORK_TYPES  = ['Remote', 'Hybrid', 'On-site'];
-const EXP_LEVELS  = ['Internship', 'Entry', 'Mid', 'Senior', 'Staff', 'Principal', 'Manager+'];
-const JOB_TYPES   = ['Full-time', 'Part-time', 'Contract', 'Internship'];
+const WORK_TYPES   = ['Remote', 'Hybrid', 'On-site'];
+const EXP_LEVELS   = ['Internship', 'Entry', 'Mid', 'Senior', 'Staff', 'Principal', 'Manager+'];
+const JOB_TYPES    = ['Full-time', 'Contract', 'Part-time', 'Internship'];
 const DATE_OPTIONS = [
   { label: 'Any time', value: 'any' },
   { label: 'Past 24 hours', value: '1' },
   { label: 'Past week', value: '7' },
   { label: 'Past month', value: '30' },
 ];
+const SOURCES = ['Greenhouse', 'Lever', 'Remotive', 'Himalayas', 'Arbeitnow'];
 
 function toggleSet(s: Set<string>, val: string): Set<string> {
-  const n = new Set(s);
-  n.has(val) ? n.delete(val) : n.add(val);
-  return n;
+  const n = new Set(s); n.has(val) ? n.delete(val) : n.add(val); return n;
 }
 
-function FilterSidebar({ filters, onChange, companies, activeCount }: {
-  filters: Filters; onChange: (f: Filters) => void; companies: string[]; activeCount: number;
+function FilterSection({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="jb-filter-section">
+      <button className="jb-filter-section-title" onClick={() => setOpen(o => !o)}>
+        {title} <ChevronDown size={13} style={{ transform: open ? 'rotate(180deg)' : '', transition: '.2s' }}/>
+      </button>
+      {open && <div className="jb-filter-options">{children}</div>}
+    </div>
+  );
+}
+
+function FilterSidebar({ filters, onChange, activeCount }: {
+  filters: Filters; onChange: (f: Filters) => void; activeCount: number;
 }) {
   const set = (patch: Partial<Filters>) => onChange({ ...filters, ...patch });
+  const clear = () => onChange({ workType: new Set(), expLevel: new Set(), jobType: new Set(), datePosted: 'any', location: '', source: new Set() });
 
   return (
     <aside className="jb-sidebar">
       <div className="jb-sidebar-header">
-        <span><SlidersHorizontal size={14}/> Filters</span>
-        {activeCount > 0 && <button className="jb-clear-btn" onClick={() => onChange({ workType: new Set(), expLevel: new Set(), jobType: new Set(), datePosted: 'any', company: '' })}>Clear all ({activeCount})</button>}
+        <span><SlidersHorizontal size={13}/> Filters</span>
+        {activeCount > 0 && <button className="jb-clear-btn" onClick={clear}>Clear ({activeCount})</button>}
       </div>
 
-      <div className="jb-filter-section">
-        <div className="jb-filter-title">Work Type</div>
+      <FilterSection title="Work Type">
         {WORK_TYPES.map(t => (
           <label key={t} className="jb-filter-option">
-            <input type="checkbox" checked={filters.workType.has(t)} onChange={() => set({ workType: toggleSet(filters.workType, t) })} />
+            <input type="checkbox" checked={filters.workType.has(t)} onChange={() => set({ workType: toggleSet(filters.workType, t) })}/>
             <span>{t}</span>
           </label>
         ))}
-      </div>
+      </FilterSection>
 
-      <div className="jb-filter-section">
-        <div className="jb-filter-title">Experience Level</div>
+      <FilterSection title="Experience Level">
         {EXP_LEVELS.map(l => (
           <label key={l} className="jb-filter-option">
-            <input type="checkbox" checked={filters.expLevel.has(l)} onChange={() => set({ expLevel: toggleSet(filters.expLevel, l) })} />
+            <input type="checkbox" checked={filters.expLevel.has(l)} onChange={() => set({ expLevel: toggleSet(filters.expLevel, l) })}/>
             <span>{l}</span>
           </label>
         ))}
-      </div>
+      </FilterSection>
 
-      <div className="jb-filter-section">
-        <div className="jb-filter-title">Job Type</div>
+      <FilterSection title="Job Type">
         {JOB_TYPES.map(t => (
           <label key={t} className="jb-filter-option">
-            <input type="checkbox" checked={filters.jobType.has(t)} onChange={() => set({ jobType: toggleSet(filters.jobType, t) })} />
+            <input type="checkbox" checked={filters.jobType.has(t)} onChange={() => set({ jobType: toggleSet(filters.jobType, t) })}/>
             <span>{t}</span>
           </label>
         ))}
-      </div>
+      </FilterSection>
 
-      <div className="jb-filter-section">
-        <div className="jb-filter-title">Date Posted</div>
+      <FilterSection title="Date Posted">
         {DATE_OPTIONS.map(o => (
           <label key={o.value} className="jb-filter-option">
-            <input type="radio" name="date" checked={filters.datePosted === o.value} onChange={() => set({ datePosted: o.value })} />
+            <input type="radio" name="date" checked={filters.datePosted === o.value} onChange={() => set({ datePosted: o.value })}/>
             <span>{o.label}</span>
           </label>
         ))}
-      </div>
+      </FilterSection>
 
-      <div className="jb-filter-section">
-        <div className="jb-filter-title">Company</div>
-        <input className="jb-company-search" placeholder="Search company…" value={filters.company} onChange={e => set({ company: e.target.value })} />
-        {companies.slice(0, 10).map(c => (
-          <label key={c} className="jb-filter-option">
-            <input type="checkbox" checked={filters.company === c} onChange={() => set({ company: filters.company === c ? '' : c })} />
-            <span>{c}</span>
+      <FilterSection title="Location">
+        <input
+          className="jb-location-input"
+          placeholder="City, state, or country…"
+          value={filters.location}
+          onChange={e => set({ location: e.target.value })}
+        />
+      </FilterSection>
+
+      <FilterSection title="Source" defaultOpen={false}>
+        {SOURCES.map(s => (
+          <label key={s} className="jb-filter-option">
+            <input type="checkbox" checked={filters.source.has(s)} onChange={() => set({ source: toggleSet(filters.source, s) })}/>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span className="jb-source-dot" style={{ background: SOURCE_COLORS[s] }}/>
+              {s}
+            </span>
           </label>
         ))}
-      </div>
+      </FilterSection>
     </aside>
   );
 }
@@ -238,42 +325,47 @@ function ActiveFilters({ filters, onChange }: { filters: Filters; onChange: (f: 
   filters.workType.forEach(v => pills.push({ label: v, remove: () => onChange({ ...filters, workType: toggleSet(filters.workType, v) }) }));
   filters.expLevel.forEach(v => pills.push({ label: v, remove: () => onChange({ ...filters, expLevel: toggleSet(filters.expLevel, v) }) }));
   filters.jobType.forEach(v => pills.push({ label: v, remove: () => onChange({ ...filters, jobType: toggleSet(filters.jobType, v) }) }));
+  filters.source.forEach(v => pills.push({ label: v, remove: () => onChange({ ...filters, source: toggleSet(filters.source, v) }) }));
   if (filters.datePosted !== 'any') {
     const label = DATE_OPTIONS.find(o => o.value === filters.datePosted)?.label || '';
     pills.push({ label, remove: () => onChange({ ...filters, datePosted: 'any' }) });
   }
-  if (filters.company) pills.push({ label: filters.company, remove: () => onChange({ ...filters, company: '' }) });
+  if (filters.location) pills.push({ label: `📍 ${filters.location}`, remove: () => onChange({ ...filters, location: '' }) });
   if (!pills.length) return null;
   return (
     <div className="jb-active-filters">
       {pills.map((p, i) => (
-        <span key={i} className="jb-active-pill">{p.label}<button onClick={p.remove}><X size={11}/></button></span>
+        <span key={i} className="jb-active-pill">{p.label}<button onClick={p.remove}><X size={10}/></button></span>
       ))}
     </div>
   );
 }
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 25;
 
 /* ─── Main Panel ─── */
 export default function JobsPanel({ searchQuery }: JobsPanelProps) {
-  const [query, setQuery]     = useState(searchQuery || 'software engineer');
-  const [jobs, setJobs]       = useState<Job[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState('');
-  const [tab, setTab]         = useState<'live' | 'saved'>('live');
+  const [query, setQuery]         = useState(searchQuery || 'software engineer');
+  const [jobs, setJobs]           = useState<Job[]>([]);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState('');
+  const [tab, setTab]             = useState<'live' | 'saved'>('live');
   const [savedJobs, setSavedJobs] = useState<Job[]>(getSavedJobs);
-  const [total, setTotal]     = useState(0);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const [filters, setFilters] = useState<Filters>({
-    workType: new Set(), expLevel: new Set(), jobType: new Set(), datePosted: '30', company: ''
+  const [selectedJob, setSelectedJob]   = useState<Job | null>(null);
+  const [sort, setSort]           = useState<'relevance' | 'date'>('relevance');
+  const [filters, setFilters]     = useState<Filters>({
+    workType: new Set(), expLevel: new Set(), jobType: new Set(),
+    datePosted: '30', location: '', source: new Set(),
   });
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const fetch_ = useCallback(async (q: string) => {
-    setLoading(true); setError(''); setVisibleCount(PAGE_SIZE);
-    try { const d = await getCareerPageJobs(q, 200); setJobs(d.jobs || []); setTotal(d.total || 0); }
-    catch { setError('Failed to fetch jobs.'); }
+    setLoading(true); setError(''); setVisibleCount(PAGE_SIZE); setSelectedJob(null);
+    try {
+      const d = await getCareerPageJobs(q, 300);
+      setJobs(d.jobs || []);
+    } catch { setError('Failed to load jobs. Check your connection.'); }
     finally { setLoading(false); }
   }, []);
 
@@ -281,28 +373,38 @@ export default function JobsPanel({ searchQuery }: JobsPanelProps) {
   useEffect(() => { if (searchQuery && searchQuery !== query) { setQuery(searchQuery); fetch_(searchQuery); } }, [searchQuery]);
   useEffect(() => { if (tab === 'saved') setSavedJobs(getSavedJobs()); }, [tab]);
 
-  const uniqueCompanies = useMemo(() => [...new Set(jobs.map(j => j.company))].sort(), [jobs]);
-
   const activeFilterCount = filters.workType.size + filters.expLevel.size + filters.jobType.size
-    + (filters.datePosted !== 'any' ? 1 : 0) + (filters.company ? 1 : 0);
+    + filters.source.size + (filters.datePosted !== 'any' ? 1 : 0) + (filters.location ? 1 : 0);
 
-  const filtered = useMemo(() => jobs.filter(j => {
-    if (filters.workType.size && !filters.workType.has(inferWorkType(j))) return false;
-    if (filters.expLevel.size && !filters.expLevel.has(inferExpLevel(j.title))) return false;
-    if (filters.jobType.has('Internship') && !j.title.toLowerCase().includes('intern')) return false;
-    if (filters.jobType.has('Contract') && !`${j.title} ${j.tags?.join(' ')}`.toLowerCase().includes('contract')) return false;
-    if (filters.datePosted !== 'any') {
-      const d = daysAgo(j.posted_at);
-      if (d === null || d > parseInt(filters.datePosted)) return false;
+  const filtered = useMemo(() => {
+    let list = jobs.filter(j => {
+      if (filters.workType.size && !filters.workType.has(inferWorkType(j))) return false;
+      if (filters.expLevel.size && !filters.expLevel.has(inferExpLevel(j.title))) return false;
+      if (filters.source.size && !filters.source.has(j.source || '')) return false;
+      if (filters.jobType.has('Contract') && !`${j.title} ${j.tags?.join(' ')}`.toLowerCase().includes('contract')) return false;
+      if (filters.jobType.has('Internship') && !j.title.toLowerCase().includes('intern')) return false;
+      if (filters.datePosted !== 'any') {
+        const d = daysAgo(j.posted_at);
+        if (d === null || d > parseInt(filters.datePosted)) return false;
+      }
+      if (filters.location) {
+        const loc = `${j.location} ${j.tags?.join(' ')}`.toLowerCase();
+        if (!loc.includes(filters.location.toLowerCase())) return false;
+      }
+      return true;
+    });
+    if (sort === 'date') {
+      list = [...list].sort((a, b) => {
+        const da = daysAgo(a.posted_at) ?? 999;
+        const db = daysAgo(b.posted_at) ?? 999;
+        return da - db;
+      });
     }
-    if (filters.company && !j.company.toLowerCase().includes(filters.company.toLowerCase())) return false;
-    return true;
-  }), [jobs, filters]);
+    return list;
+  }, [jobs, filters, sort]);
 
-  // Reset visible count when filters change
-  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [filters]);
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [filters, sort]);
 
-  // Infinite scroll — load more when sentinel enters viewport
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
@@ -314,72 +416,134 @@ export default function JobsPanel({ searchQuery }: JobsPanelProps) {
     return () => observer.disconnect();
   }, [filtered]);
 
-  const displayJobs = tab === 'saved' ? savedJobs : filtered.slice(0, visibleCount);
-  const hasMore = tab === 'live' && visibleCount < filtered.length;
+  const displayJobs  = tab === 'saved' ? savedJobs : filtered.slice(0, visibleCount);
+  const hasMore      = tab === 'live' && visibleCount < filtered.length;
+  const totalLabel   = tab === 'live' ? filtered.length : savedJobs.length;
+
+  const QUICK_CHIPS = ['Remote', 'Senior', 'Entry', 'Contract', 'AI / ML', 'Frontend', 'Backend', 'Data'];
 
   return (
     <div className="jb-shell">
-      {/* Top bar */}
+      {/* ── Top Bar ── */}
       <div className="jb-topbar">
         <div className="jb-tabs">
-          <button className={`jobs-tab ${tab === 'live' ? 'active' : ''}`} onClick={() => setTab('live')}>
-            <Briefcase size={14}/> Live Jobs
-            {total > 0 && <span className="jobs-tab-count">{total}</span>}
+          <button className={`jobs-tab ${tab === 'live' ? 'active' : ''}`} onClick={() => { setTab('live'); setSelectedJob(null); }}>
+            <Briefcase size={13}/> Live Jobs
+            {jobs.length > 0 && <span className="jobs-tab-count">{filtered.length}</span>}
           </button>
-          <button className={`jobs-tab ${tab === 'saved' ? 'active' : ''}`} onClick={() => setTab('saved')}>
-            <BookmarkCheck size={14}/> Saved
+          <button className={`jobs-tab ${tab === 'saved' ? 'active' : ''}`} onClick={() => { setTab('saved'); setSelectedJob(null); setSavedJobs(getSavedJobs()); }}>
+            <BookmarkCheck size={13}/> Saved
             {getSavedJobs().length > 0 && <span className="jobs-tab-count">{getSavedJobs().length}</span>}
           </button>
         </div>
 
         {tab === 'live' && (
           <div className="jb-search-bar">
-            <Search size={15} className="jb-search-icon"/>
-            <input value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && fetch_(query)} placeholder="Job title, skill, or keyword…"/>
+            <Search size={14} className="jb-search-icon"/>
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && fetch_(query)}
+              placeholder="Job title, skill, keyword, or company…"
+            />
             <button className="btn-primary btn-sm" onClick={() => fetch_(query)} disabled={loading}>
-              {loading ? <Loader size={14} className="spin"/> : 'Search'}
+              {loading ? <Loader size={13} className="spin"/> : 'Search'}
             </button>
           </div>
         )}
       </div>
 
+      {/* ── Quick Filter Chips ── */}
+      {tab === 'live' && (
+        <div className="jb-quick-chips">
+          {QUICK_CHIPS.map(chip => {
+            const active = query.toLowerCase().includes(chip.toLowerCase());
+            return (
+              <button key={chip} className={`jb-quick-chip ${active ? 'active' : ''}`}
+                onClick={() => { const q = active ? 'software engineer' : chip; setQuery(q); fetch_(q); }}>
+                {chip}
+              </button>
+            );
+          })}
+          <div className="jb-sort-control">
+            <ArrowUpDown size={12}/>
+            <select value={sort} onChange={e => setSort(e.target.value as any)} className="jb-sort-select">
+              <option value="relevance">Relevance</option>
+              <option value="date">Newest first</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* ── Body ── */}
       <div className="jb-body">
         {tab === 'live' && (
-          <FilterSidebar filters={filters} onChange={f => { setFilters(f); setVisibleCount(PAGE_SIZE); }} companies={uniqueCompanies} activeCount={activeFilterCount} />
+          <FilterSidebar filters={filters} onChange={f => { setFilters(f); setVisibleCount(PAGE_SIZE); }} activeCount={activeFilterCount}/>
         )}
 
-        <div className="jb-main">
-          {tab === 'live' && (
-            <>
-              <div className="jb-results-header">
-                <span className="jb-results-count">{filtered.length} jobs found · last 30 days</span>
-                <span className="jb-results-note">All links → company career pages · Manual apply only</span>
+        {/* ── Center: list + detail ── */}
+        <div className={`jb-center ${selectedJob ? 'jb-center--split' : ''}`}>
+          {/* Job list */}
+          <div className="jb-list-col">
+            {tab === 'live' && (
+              <div className="jb-results-bar">
+                <span className="jb-results-count">
+                  <Globe size={12}/> {totalLabel.toLocaleString()} jobs · 5 sources
+                </span>
+                <ActiveFilters filters={filters} onChange={setFilters}/>
               </div>
-              <ActiveFilters filters={filters} onChange={setFilters} />
-            </>
-          )}
+            )}
 
-          {error && <div className="error-banner">{error}</div>}
-          {loading && <div className="jb-list">{Array.from({length:6}).map((_,i) => <JobSkeleton key={i}/>)}</div>}
+            {error && <div className="error-banner">{error}</div>}
 
-          {!loading && tab === 'live' && filtered.length === 0 && !error && (
-            <div className="empty-state"><Briefcase size={40}/><p>No jobs match your filters.</p></div>
-          )}
-          {tab === 'saved' && savedJobs.length === 0 && (
-            <div className="empty-state"><Bookmark size={40}/><p>No saved jobs yet.</p></div>
-          )}
+            {loading && (
+              <div className="jb-list">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="jb-card">
+                    <div className="jb-card-inner">
+                      <div className="sk-box" style={{ width: 38, height: 38, borderRadius: 8, flexShrink: 0 }}/>
+                      <div className="jb-card-body" style={{ gap: 6 }}>
+                        <div className="sk-box" style={{ width: '60%', height: 14 }}/>
+                        <div className="sk-box" style={{ width: '40%', height: 11 }}/>
+                        <div className="sk-box" style={{ width: '80%', height: 11 }}/>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
-          <div className="jb-list">
-            {displayJobs.map((job, i) => <JobCard key={i} job={job}/>)}
+            {!loading && displayJobs.length === 0 && (
+              <div className="empty-state">
+                {tab === 'saved' ? <><Bookmark size={36}/><p>No saved jobs yet.</p></> : <><Briefcase size={36}/><p>No jobs match your filters.</p></>}
+              </div>
+            )}
+
+            <div className="jb-list">
+              {displayJobs.map((job, i) => (
+                <JobCard
+                  key={i}
+                  job={job}
+                  selected={selectedJob?.url === job.url}
+                  onClick={() => setSelectedJob(prev => prev?.url === job.url ? null : job)}
+                />
+              ))}
+            </div>
+
+            {hasMore && (
+              <div ref={sentinelRef} className="jb-load-more-sentinel">
+                <Loader size={16} className="spin" style={{ color: 'var(--text-3)' }}/>
+                <span>{visibleCount} of {filtered.length}</span>
+              </div>
+            )}
           </div>
 
-          {/* Infinite scroll sentinel */}
-          {hasMore && <div ref={sentinelRef} className="jb-load-more-sentinel">
-            <Loader size={18} className="spin" style={{ color: 'var(--text-muted)' }}/>
-            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-              Showing {visibleCount} of {filtered.length}
-            </span>
-          </div>}
+          {/* Detail panel */}
+          {selectedJob && (
+            <div className="jb-detail-col">
+              <JobDetailPanel job={selectedJob} onClose={() => setSelectedJob(null)}/>
+            </div>
+          )}
         </div>
       </div>
     </div>
