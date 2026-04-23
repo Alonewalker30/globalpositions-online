@@ -54,17 +54,37 @@ export default function DashboardPanel({ onNavigate }: DashboardPanelProps) {
     { label: 'AI Features Active',  value: '6',                                               icon: <Zap size={20} />,        color: 'yellow' },
   ];
 
+  const MARQUEE_COMPANIES = [
+    'Stripe','Anthropic','Databricks','Cloudflare','Datadog','Airbnb','Coinbase',
+    'Spotify','GitLab','Figma','Braze','Affirm','Klaviyo','Discord','Lyft',
+    'Twilio','Plaid','Dropbox','Instacart','Vercel','Amplitude','Fivetran',
+    'Robinhood','Pinterest','Toast','SoFi','Webflow','LaunchDarkly','Duolingo',
+  ];
+
   return (
     <div className="panel">
-      {/* Welcome */}
+      {/* Hero welcome banner */}
       <div className="welcome-banner">
         <div>
-          <h2 className="welcome-title">Welcome back 👋</h2>
-          <p className="welcome-sub">Your AI-powered career platform is ready. Here's your overview.</p>
+          <div className="welcome-eyebrow">AI-Powered Career Platform</div>
+          <h2 className="welcome-title">Find your next global position</h2>
+          <p className="welcome-sub">Live job listings from 67+ top companies · ATS resume optimization · AI career coaching</p>
         </div>
-        <button className="btn-primary" onClick={() => onNavigate('jobs')}>
-          Find Job Matches <ArrowRight size={15} />
+        <button className="btn-primary btn-lg" onClick={() => onNavigate('jobs')}>
+          Browse Live Jobs <ArrowRight size={15} />
         </button>
+      </div>
+
+      {/* Animated company marquee — inspired by Frontend-Projects/Slideshow */}
+      <div className="marquee-wrap">
+        <span className="marquee-label">Hiring from</span>
+        <div className="marquee-track-outer">
+          <div className="marquee-track">
+            {[...MARQUEE_COMPANIES, ...MARQUEE_COMPANIES].map((c, i) => (
+              <span key={i} className="marquee-chip">{c}</span>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Stats grid */}
