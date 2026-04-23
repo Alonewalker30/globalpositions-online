@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     nvidia_api_key: str = ""
     nvidia_model: str = "meta/llama-3.3-70b-instruct"
+    nvidia_fast_model: str = "meta/llama-3.1-8b-instruct"
     environment: str = "development"
     port: int = 8000
     cors_origins: list = ["http://localhost:3000", "http://localhost:5173", "https://globalpositions.online", "https://www.globalpositions.online", "https://globalpositions-online.vercel.app"]

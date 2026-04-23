@@ -271,7 +271,7 @@ async def parse_resume_ai(
         # Compress whitespace to fit more content in fewer chars
         compressed = ' '.join(text.split())
         prompt = _PARSE_PROMPT.format(resume_text=compressed[:10000])
-        raw = claude_service._chat(prompt, max_tokens=2500)
+        raw = claude_service._fast_chat(prompt, max_tokens=2500)
 
         # Strip any accidental markdown fences
         if raw.startswith("```"):

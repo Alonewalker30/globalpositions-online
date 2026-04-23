@@ -79,6 +79,23 @@ class ClaudeService:
             r = self.client.messages.create(**kwargs)
             return r.content[0].text.strip()
 
+    def _fast_chat(self, prompt: str, max_tokens: int = 2500) -> str:
+        """Uses a small fast model for structured extraction tasks (parse, JSON output)."""
+        if self.mode == "nvidia":
+            from openai import OpenAI
+            fast_model = (settings.nvidia_fast_model or "meta/llama-3.1-8b-instruct").strip()
+            fast_client = OpenAI(api_key=(settings.nvidia_api_key or "").strip(), base_url=_NVIDIA_BASE_URL)
+            r = fast_client.chat.completions.create(
+                model=fast_model,
+                max_tokens=max_tokens,
+                messages=[{"role": "user", "content": prompt}],
+                timeout=60,
+            )
+            logger.info("fast_chat used model: %s", fast_model)
+            return (r.choices[0].message.content or "").strip()
+        # For groq/anthropic fall back to regular _chat
+        return self._chat(prompt, max_tokens)
+
     def _parse_json(self, text: str) -> dict:
         text = text.strip()
         if text.startswith("```"):
