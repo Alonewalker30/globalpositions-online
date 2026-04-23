@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { Briefcase, TrendingUp, FileText, Bot, ArrowRight, Zap, Target, BookOpen, Bookmark, BarChart2 } from 'lucide-react';
 import { getCareerPageJobs, getTrendingSkills } from '../services/api';
 import { getSavedJobs } from './JobsPanel';
+import { useTilt } from '../hooks/useTilt';
+import Globe3D from './Globe3D';
 
 interface DashboardPanelProps {
   onNavigate: (p: string) => void;
@@ -30,6 +32,25 @@ const SKILL_COLORS = [
   '#2563EB', '#7C3AED', '#059669', '#D97706', '#DC2626',
   '#0891B2', '#4F46E5', '#16A34A', '#EA580C', '#9333EA',
 ];
+
+function TiltCard({ className, children, onClick }: { className: string; children: React.ReactNode; onClick?: () => void }) {
+  const { ref, onMouseMove, onMouseLeave } = useTilt(8);
+  const Tag = onClick ? 'button' : 'div';
+  return (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    <Tag
+      ref={ref as React.RefObject<any>}
+      className={className}
+      onMouseMove={onMouseMove as React.MouseEventHandler<any>}
+      onMouseLeave={onMouseLeave}
+      onClick={onClick}
+      style={{ position: 'relative', overflow: 'hidden' }}
+    >
+      <div className="tilt-shine" />
+      {children}
+    </Tag>
+  );
+}
 
 export default function DashboardPanel({ onNavigate }: DashboardPanelProps) {
   const [liveJobCount, setLiveJobCount] = useState<number | null>(null);
@@ -63,19 +84,24 @@ export default function DashboardPanel({ onNavigate }: DashboardPanelProps) {
 
   return (
     <div className="panel">
-      {/* Hero welcome banner */}
-      <div className="welcome-banner">
-        <div>
+      {/* Hero welcome banner — two-column with 3D globe */}
+      <div className="welcome-banner welcome-banner-3d">
+        <div className="welcome-banner-text">
           <div className="welcome-eyebrow">AI-Powered Career Platform</div>
           <h2 className="welcome-title">Find your next global position</h2>
           <p className="welcome-sub">Live job listings from 67+ top companies · ATS resume optimization · AI career coaching</p>
+          <button className="btn-primary btn-lg" onClick={() => onNavigate('jobs')}>
+            Browse Live Jobs <ArrowRight size={15} />
+          </button>
         </div>
-        <button className="btn-primary btn-lg" onClick={() => onNavigate('jobs')}>
-          Browse Live Jobs <ArrowRight size={15} />
-        </button>
+        <div className="globe-wrap">
+          <Suspense fallback={<div className="globe-fallback" />}>
+            <Globe3D />
+          </Suspense>
+        </div>
       </div>
 
-      {/* Animated company marquee — inspired by Frontend-Projects/Slideshow */}
+      {/* Animated company marquee */}
       <div className="marquee-wrap">
         <span className="marquee-label">Hiring from</span>
         <div className="marquee-track-outer">
@@ -90,13 +116,13 @@ export default function DashboardPanel({ onNavigate }: DashboardPanelProps) {
       {/* Stats grid */}
       <div className="stats-grid">
         {STATS.map(s => (
-          <div key={s.label} className={`stat-card stat-${s.color}`}>
+          <TiltCard key={s.label} className={`stat-card stat-${s.color}`}>
             <div className={`stat-icon-wrap stat-icon-${s.color}`}>{s.icon}</div>
             <div>
               <div className="stat-value">{s.value}</div>
               <div className="stat-label">{s.label}</div>
             </div>
-          </div>
+          </TiltCard>
         ))}
       </div>
 
@@ -104,14 +130,14 @@ export default function DashboardPanel({ onNavigate }: DashboardPanelProps) {
       <h3 className="section-heading">Quick Actions</h3>
       <div className="quick-grid">
         {QUICK_ACTIONS.map(a => (
-          <button key={a.label} className={`quick-card quick-${a.color}`} onClick={() => onNavigate(a.page)}>
+          <TiltCard key={a.label} className={`quick-card quick-${a.color}`} onClick={() => onNavigate(a.page)}>
             <div className={`quick-icon quick-icon-${a.color}`}>{a.icon}</div>
             <div className="quick-text">
               <span className="quick-label">{a.label}</span>
               <span className="quick-sub">{a.sub}</span>
             </div>
             <ArrowRight size={16} className="quick-arrow" />
-          </button>
+          </TiltCard>
         ))}
       </div>
 

@@ -2783,4 +2783,46 @@ option { background: var(--overlay); color: var(--text-1); }
 
 /* ── Misc ── */
 .muted { color: var(--text-3) !important; }
+
+/* ── 3D Globe banner ── */
+.welcome-banner-3d {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.welcome-banner-text {
+  flex: 1;
+  padding: 32px 32px 32px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.globe-wrap {
+  flex: 0 0 340px;
+  height: 280px;
+  position: relative;
+}
+.globe-fallback {
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(ellipse at center, rgba(99,102,241,.08) 0%, transparent 70%);
+  border-radius: 50%;
+}
+@media (max-width: 860px) {
+  .welcome-banner-3d { flex-direction: column; }
+  .globe-wrap { flex: none; width: 100%; height: 220px; }
+}
+
+/* ── Tilt shine overlay ── */
+.tilt-shine {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity .3s;
+  z-index: 1;
+}
 .char-count { color: var(--text-3) !important; }
