@@ -560,7 +560,7 @@ async def career_chat(req: ChatRequest):
         # Keep up to 30 history messages for full conversation context
         history = (req.history or [])[-30:]
 
-        if claude_service.mode == "groq":
+        if claude_service.mode in ("groq", "nvidia"):
             msgs = [{"role": "system", "content": system}]
             for h in history:
                 role = h.get("role", "user")
