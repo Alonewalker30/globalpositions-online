@@ -42,8 +42,9 @@ export default function AIChatPanel() {
       });
       const reply = res.data.reply ?? 'Sorry, I could not generate a response.';
       setMessages(m => [...m, { role: 'assistant', text: reply, ts: ts() }]);
-    } catch {
-      setMessages(m => [...m, { role: 'assistant', text: 'I encountered an error. Please try again.', ts: ts() }]);
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail || e?.message || 'Unknown error';
+      setMessages(m => [...m, { role: 'assistant', text: `Error: ${detail}`, ts: ts() }]);
     } finally { setLoading(false); }
   };
 
