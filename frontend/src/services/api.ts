@@ -99,6 +99,7 @@ export const parseResumeAI = async (fileOrText: File | string) => {
   }
   const response = await apiClient.post('/resume/parse-ai', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 120000,
   });
   return response.data;
 };
