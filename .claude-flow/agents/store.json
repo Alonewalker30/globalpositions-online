@@ -1,0 +1,33 @@
+{
+  "agents": {
+    "backend-todo16-24": {
+      "agentId": "backend-todo16-24",
+      "agentType": "coder",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {
+        "model": "haiku"
+      },
+      "createdAt": "2026-04-28T14:27:40.358Z",
+      "domain": "backend",
+      "model": "haiku",
+      "modelRoutedBy": "explicit"
+    },
+    "frontend-todo5-27": {
+      "agentId": "frontend-todo5-27",
+      "agentType": "coder",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {
+        "model": "haiku"
+      },
+      "createdAt": "2026-04-28T14:27:42.164Z",
+      "domain": "frontend",
+      "model": "haiku",
+      "modelRoutedBy": "explicit"
+    }
+  },
+  "version": "3.0.0"
+}

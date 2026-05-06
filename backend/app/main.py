@@ -556,6 +556,7 @@ async def get_trending_skills():
 
 
 class ChatRequest(PydanticBaseModel):
+    model_config = {"protected_namespaces": ()}
     message: str
     history: Optional[list] = []
     model_tier: Optional[str] = "balanced"
