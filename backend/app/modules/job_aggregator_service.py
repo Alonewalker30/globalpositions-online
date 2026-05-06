@@ -175,8 +175,8 @@ _TECH_ROLES = {
 
 _CACHE: OrderedDict = OrderedDict()
 _CACHE_LOCK = threading.Lock()
-_CACHE_TTL = 600
-_CACHE_MAX = 50
+_CACHE_TTL = 300
+_CACHE_MAX = 10
 
 
 def _matches(title: str, query_tokens: List[str]) -> bool:
@@ -561,7 +561,7 @@ class JobAggregatorService:
         all_jobs: List[Dict] = []
         max_workers = len(GREENHOUSE_BOARDS) + len(LEVER_BOARDS) + len(ASHBY_BOARDS) + 6
 
-        with ThreadPoolExecutor(max_workers=min(max_workers, 30)) as pool:
+        with ThreadPoolExecutor(max_workers=min(max_workers, 12)) as pool:
             futures = {}
             for slug, name in GREENHOUSE_BOARDS.items():
                 futures[pool.submit(_fetch_greenhouse, slug, name, query_tokens)] = slug

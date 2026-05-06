@@ -504,7 +504,7 @@ async def get_career_jobs(request: Request, query: str = "software engineer", li
     try:
         loop = asyncio.get_running_loop()
         jobs = await loop.run_in_executor(
-            None, lambda: job_aggregator_svc.get_career_jobs(query=query, limit=min(limit, 120))
+            None, lambda: job_aggregator_svc.get_career_jobs(query=query, limit=min(limit, 80))
         )
         return {"success": True, "total": len(jobs), "jobs": jobs}
     except Exception as e:
