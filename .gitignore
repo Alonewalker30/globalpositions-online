@@ -11,3 +11,13 @@ dist/
 career-ops/
 public-apis/
 .gstack/
+# Claude / tooling artifacts
+.claude/
+.claude-flow/
+.swarm/
+backend/.claude-flow/
+.mcp.json
+ruvector.db
+*.db
+*.db-shm
+*.db-wal
