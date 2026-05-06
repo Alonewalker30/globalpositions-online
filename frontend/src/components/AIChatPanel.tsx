@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Loader, Sparkles, AlignLeft, X } from 'lucide-react';
-import { apiClient } from '../services/api';
+import { streamChat } from '../services/api';
 import MarkdownText from './MarkdownText';
 
 interface Message { role: 'user' | 'assistant'; text: string; ts: string; }
@@ -28,24 +28,42 @@ export default function AIChatPanel() {
   const send = async (text: string) => {
     const content = text.trim();
     if (!content || loading) return;
+
+    const history = messages;
     setMessages(m => [...m, { role: 'user', text: content, ts: ts() }]);
     setInput('');
     setLongText('');
     setLongMode(false);
     setLoading(true);
 
+    const tier = localStorage.getItem('model_tier') ?? 'balanced';
+    let accumulated = '';
+
     try {
-      // Send full conversation history (backend handles up to 30 messages)
-      const res = await apiClient.post('/career/chat', {
-        message: content,
-        history: messages,
-      });
-      const reply = res.data.reply ?? 'Sorry, I could not generate a response.';
-      setMessages(m => [...m, { role: 'assistant', text: reply, ts: ts() }]);
-    } catch (e: any) {
-      const detail = e?.response?.data?.detail || e?.message || 'Unknown error';
+      for await (const token of streamChat(content, history, tier)) {
+        if (accumulated === '') {
+          // First token — add the assistant bubble and stop the typing indicator
+          setLoading(false);
+          setMessages(m => [...m, { role: 'assistant', text: token, ts: ts() }]);
+        } else {
+          setMessages(m => {
+            const copy = [...m];
+            const last = copy[copy.length - 1];
+            copy[copy.length - 1] = { ...last, text: last.text + token };
+            return copy;
+          });
+        }
+        accumulated += token;
+      }
+      if (!accumulated) {
+        setMessages(m => [...m, { role: 'assistant', text: 'No response received.', ts: ts() }]);
+      }
+    } catch (e: unknown) {
+      const detail = (e instanceof Error ? e.message : String(e)) || 'Unknown error';
       setMessages(m => [...m, { role: 'assistant', text: `Error: ${detail}`, ts: ts() }]);
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -61,11 +79,11 @@ export default function AIChatPanel() {
           <div className="chat-name">AI Career Copilot</div>
           <div className="chat-status"><span className="status-dot" />Always on</div>
         </div>
-        <div className="chat-badge"><Sparkles size={13} />Large context · Full history</div>
+        <div className="chat-badge"><Sparkles size={13} />Streaming · Multi-model</div>
       </div>
 
       {/* Messages */}
-      <div className="chat-messages">
+      <div className="chat-messages" role="log" aria-live="polite" aria-relevant="additions">
         {messages.length === 0 && (
           <div className="chat-welcome">
             <div className="chat-welcome-icon"><Bot size={32} /></div>

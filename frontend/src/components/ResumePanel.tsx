@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Plus, Trash2, ChevronDown, ChevronUp, Download, Loader,
   Sparkles, FileText, CheckCircle, XCircle, User, Briefcase,
@@ -186,6 +186,11 @@ export default function ResumePanel() {
   const upd = (patch: Partial<ResumeData>) => setData({ ...data, ...patch });
   const updContact = (patch: Partial<Contact>) => upd({ contact: { ...data.contact, ...patch } });
 
+  useEffect(() => {
+    const pending = localStorage.getItem('pending_job_description');
+    if (pending) { setJobDesc(pending); localStorage.removeItem('pending_job_description'); setAnalyzeOpen(true); }
+  }, []);
+
   /* Analyze */
   const analyze = async () => {
     const resumeText = buildResumeText(data);
@@ -193,7 +198,9 @@ export default function ResumePanel() {
     setAnalyzing(true);
     try {
       const res = await analyzeResume(resumeText, jobDesc);
-      setAtsScore(res.ats_compatibility?.compatibility_score ?? 0);
+      const score = res.ats_compatibility?.compatibility_score ?? 0;
+      setAtsScore(score);
+      localStorage.setItem('last_ats_score', String(score));
       setKwMatch(Math.round(res.keyword_match?.match_percentage ?? 0));
       setSuggestions(res.improvements?.key_improvements?.slice(0, 8) || []);
       setMatchedKw(res.keyword_match?.matched_keywords?.slice(0, 16) || []);
@@ -345,6 +352,11 @@ Write a 3-paragraph cover letter. Opening: express enthusiasm and highlight the 
       {rewriteMsg && (
         <div className={`rb-rewrite-banner ${rewriteMsg.includes('failed') ? 'rb-rewrite-error' : 'rb-rewrite-ok'}`}>
           <Sparkles size={13} />{rewriteMsg}
+          {!rewriteMsg.includes('failed') && (
+            <span style={{ marginLeft: 8, opacity: .75, fontSize: 11 }}>
+              — Review all suggestions carefully. Verify any metrics before submitting.
+            </span>
+          )}
           <button onClick={() => setRewriteMsg('')} style={{ marginLeft: 'auto', opacity: .6 }}><X_ /></button>
         </div>
       )}

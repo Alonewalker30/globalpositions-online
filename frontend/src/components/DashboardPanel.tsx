@@ -1,7 +1,8 @@
-import { useEffect, useState, Suspense, useMemo } from 'react';
+import { useEffect, useState, Suspense, useMemo, useCallback } from 'react';
 import {
   Briefcase, TrendingUp, FileText, Bot, ArrowRight, Zap, Target,
-  BookOpen, Bookmark, BarChart2, MapPin, X, ExternalLink,
+  BookOpen, Bookmark, BarChart2, MapPin, X, ExternalLink, ChevronRight,
+  RefreshCw,
 } from 'lucide-react';
 import { getCareerPageJobs, getTrendingSkills } from '../services/api';
 import { getSavedJobs } from './JobsPanel';
@@ -27,10 +28,10 @@ interface Job {
 }
 
 const QUICK_ACTIONS = [
-  { label: 'Find Job Matches',      sub: 'AI-ranked live openings',     page: 'jobs',    icon: <Briefcase size={20} />,  color: 'blue'   },
-  { label: 'Optimize Resume',       sub: 'ATS score & AI rewriting',    page: 'resume',  icon: <FileText size={20} />,   color: 'green'  },
-  { label: 'Career Intelligence',   sub: 'Market trends & salary data', page: 'career',  icon: <TrendingUp size={20} />, color: 'purple' },
-  { label: 'AI Career Copilot',     sub: 'Instant career guidance',     page: 'copilot', icon: <Bot size={20} />,        color: 'orange' },
+  { label: 'Find Job Matches',    sub: 'AI-ranked live openings',     page: 'jobs',    icon: <Briefcase size={18} /> },
+  { label: 'Optimize Resume',     sub: 'ATS score & AI rewriting',    page: 'resume',  icon: <FileText size={18} />  },
+  { label: 'Career Intelligence', sub: 'Market trends & salary data', page: 'career',  icon: <TrendingUp size={18} />},
+  { label: 'AI Career Copilot',   sub: 'Instant career guidance',     page: 'copilot', icon: <Bot size={18} />       },
 ];
 
 const TIPS = [
@@ -65,25 +66,39 @@ function TiltCard({ className, children, onClick }: { className: string; childre
 
 export default function DashboardPanel({ onNavigate }: DashboardPanelProps) {
   const [liveJobCount, setLiveJobCount]   = useState<number | null>(null);
+  const [liveJobError, setLiveJobError]   = useState(false);
   const [allJobs, setAllJobs]             = useState<Job[]>([]);
   const [trendingSkills, setTrendingSkills] = useState<SkillTrend[]>([]);
   const [skillsLoading, setSkillsLoading] = useState(true);
+  const [skillsError, setSkillsError]     = useState(false);
   const [selectedHub, setSelectedHub]     = useState<CityHub | null>(null);
-  const savedCount = getSavedJobs().length;
+  const savedJobs = useMemo(() => getSavedJobs(), []);
+  const savedCount = savedJobs.length;
+  const atsScore = useMemo(() => {
+    const raw = localStorage.getItem('last_ats_score');
+    return raw ? parseInt(raw, 10) : null;
+  }, []);
 
-  useEffect(() => {
+  const fetchJobs = useCallback(() => {
+    setLiveJobError(false);
     getCareerPageJobs('software engineer', 200)
       .then(d => {
         const jobs = d.jobs ?? [];
         setLiveJobCount(d.total ?? jobs.length ?? 0);
         setAllJobs(jobs);
       })
-      .catch(() => setLiveJobCount(null));
+      .catch(() => { setLiveJobCount(null); setLiveJobError(true); });
+  }, []);
 
+  const fetchSkills = useCallback(() => {
+    setSkillsError(false);
+    setSkillsLoading(true);
     getTrendingSkills()
       .then(d => { setTrendingSkills(d.skills?.slice(0, 12) ?? []); setSkillsLoading(false); })
-      .catch(() => setSkillsLoading(false));
+      .catch(() => { setSkillsLoading(false); setSkillsError(true); });
   }, []);
+
+  useEffect(() => { fetchJobs(); fetchSkills(); }, []);
 
   const cityJobs = useMemo(() => {
     if (!selectedHub) return [];
@@ -96,10 +111,21 @@ export default function DashboardPanel({ onNavigate }: DashboardPanelProps) {
   }, [selectedHub, allJobs]);
 
   const STATS = [
-    { label: 'Live Listings',    value: liveJobCount != null ? `${liveJobCount}+` : '…', icon: <Briefcase size={18} />,  color: 'blue'   },
-    { label: 'Saved Jobs',       value: String(savedCount),                                icon: <Bookmark size={18} />,   color: 'green'  },
-    { label: 'Skills Tracked',   value: trendingSkills.length > 0 ? String(trendingSkills.length) : '25', icon: <TrendingUp size={18} />, color: 'purple' },
-    { label: 'AI Features',      value: '6',                                               icon: <Zap size={18} />,        color: 'yellow' },
+    {
+      label: 'Live Listings',
+      value: liveJobError ? 'Error' : liveJobCount != null ? `${liveJobCount}+` : '…',
+      icon: <Briefcase size={18} />, color: 'blue',
+      error: liveJobError, onRetry: fetchJobs,
+    },
+    { label: 'Saved Jobs',     value: String(savedCount), icon: <Bookmark size={18} />,  color: 'green'  },
+    { label: 'Skills Tracked', value: trendingSkills.length > 0 ? String(trendingSkills.length) : (skillsError ? 'Error' : '…'), icon: <TrendingUp size={18} />, color: 'purple' },
+    {
+      label: atsScore != null ? 'Resume ATS Score' : 'ATS Score',
+      value: atsScore != null ? `${atsScore}%` : '—',
+      icon: <Target size={18} />, color: 'yellow',
+      hint: atsScore == null ? 'Scan your resume →' : undefined,
+      onClick: atsScore == null ? () => onNavigate('resume') : undefined,
+    },
   ];
 
   const MARQUEE_COMPANIES = [
@@ -139,12 +165,18 @@ export default function DashboardPanel({ onNavigate }: DashboardPanelProps) {
       {/* ── Stats ── */}
       <div className="stats-grid">
         {STATS.map(s => (
-          <TiltCard key={s.label} className={`stat-card stat-${s.color}`}>
+          <TiltCard key={s.label} className={`stat-card stat-${s.color}`} onClick={s.onClick}>
             <div className={`stat-icon-wrap stat-icon-${s.color}`}>{s.icon}</div>
-            <div>
+            <div style={{ flex: 1 }}>
               <div className="stat-value">{s.value}</div>
               <div className="stat-label">{s.label}</div>
+              {s.hint && <div className="stat-hint">{s.hint}</div>}
             </div>
+            {s.error && s.onRetry && (
+              <button className="stat-retry-btn" onClick={e => { e.stopPropagation(); s.onRetry!(); }} title="Retry">
+                <RefreshCw size={13} />
+              </button>
+            )}
           </TiltCard>
         ))}
       </div>
@@ -232,16 +264,17 @@ export default function DashboardPanel({ onNavigate }: DashboardPanelProps) {
 
       {/* ── Quick actions ── */}
       <h3 className="section-heading">Quick Actions</h3>
-      <div className="quick-grid">
-        {QUICK_ACTIONS.map(a => (
-          <TiltCard key={a.label} className={`quick-card quick-${a.color}`} onClick={() => onNavigate(a.page)}>
-            <div className={`quick-icon quick-icon-${a.color}`}>{a.icon}</div>
-            <div className="quick-text">
-              <span className="quick-label">{a.label}</span>
-              <span className="quick-sub">{a.sub}</span>
-            </div>
-            <ArrowRight size={15} className="quick-arrow" />
-          </TiltCard>
+      <div className="quick-action-bar">
+        {QUICK_ACTIONS.map((a, i) => (
+          <button key={a.label} className="quick-action-item" onClick={() => onNavigate(a.page)}>
+            <span className="quick-action-icon">{a.icon}</span>
+            <span className="quick-action-text">
+              <span className="quick-action-label">{a.label}</span>
+              <span className="quick-action-sub">{a.sub}</span>
+            </span>
+            <ChevronRight size={15} className="quick-action-chevron" />
+            {i < QUICK_ACTIONS.length - 1 && <span className="quick-action-sep" />}
+          </button>
         ))}
       </div>
 
@@ -256,6 +289,11 @@ export default function DashboardPanel({ onNavigate }: DashboardPanelProps) {
       <div className="trending-skills-grid">
         {skillsLoading ? (
           Array.from({ length: 12 }).map((_, i) => <div key={i} className="trending-skill-card skeleton-card" />)
+        ) : skillsError ? (
+          <div className="inline-error-state">
+            <span>Couldn't load skills data</span>
+            <button className="inline-retry-btn" onClick={fetchSkills}><RefreshCw size={12} /> Retry</button>
+          </div>
         ) : trendingSkills.length > 0 ? (
           trendingSkills.map((s, i) => (
             <div key={s.skill} className="trending-skill-card">
@@ -280,7 +318,7 @@ export default function DashboardPanel({ onNavigate }: DashboardPanelProps) {
         <>
           <h3 className="section-heading">Saved Jobs</h3>
           <div className="saved-preview">
-            {getSavedJobs().slice(0, 3).map((j, i) => (
+            {savedJobs.slice(0, 3).map((j, i) => (
               <div key={i} className="saved-preview-row">
                 <div className="job-logo">{j.company?.[0] ?? '?'}</div>
                 <div className="saved-preview-info">

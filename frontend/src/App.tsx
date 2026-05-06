@@ -7,6 +7,7 @@ import ResumePanel from './components/ResumePanel';
 import CareerIntelPanel from './components/CareerIntelPanel';
 import AIChatPanel from './components/AIChatPanel';
 import ToastContainer from './components/Toast';
+import PanelErrorBoundary from './components/PanelErrorBoundary';
 import './styles/App.css';
 
 export default function App() {
@@ -24,11 +25,11 @@ export default function App() {
         <TopBar page={page} searchQuery={searchQuery} onSearch={setSearchQuery} />
 
         <main className="app-content">
-          {page === 'dashboard' && <DashboardPanel onNavigate={navigate} />}
-          {page === 'jobs'      && <JobsPanel      searchQuery={searchQuery} />}
-          {page === 'resume'    && <ResumePanel    />}
-          {page === 'career'    && <CareerIntelPanel />}
-          {page === 'copilot'   && <AIChatPanel    />}
+          {page === 'dashboard' && <PanelErrorBoundary name="Dashboard"><DashboardPanel onNavigate={navigate} /></PanelErrorBoundary>}
+          {page === 'jobs'      && <PanelErrorBoundary name="Jobs"><JobsPanel searchQuery={searchQuery} onNavigate={navigate} /></PanelErrorBoundary>}
+          {page === 'resume'    && <PanelErrorBoundary name="Resume"><ResumePanel /></PanelErrorBoundary>}
+          {page === 'career'    && <PanelErrorBoundary name="Career"><CareerIntelPanel /></PanelErrorBoundary>}
+          {page === 'copilot'   && <PanelErrorBoundary name="AI Copilot"><AIChatPanel /></PanelErrorBoundary>}
         </main>
       </div>
 

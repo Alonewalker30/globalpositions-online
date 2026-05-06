@@ -123,3 +123,97 @@ export const rewriteResumeBullets = async (resumeData: object, jobDescription: s
   });
   return response.data;
 };
+
+// ── TinyFish Browser API ────────────────────────────────────────────────────
+
+export type BrowserJobSource = 'linkedin' | 'indeed' | 'glassdoor';
+
+export const scrapeJobsBrowser = async (
+  query: string,
+  source: BrowserJobSource = 'linkedin',
+  location = '',
+  limit = 30,
+) => {
+  const response = await apiClient.post(
+    '/browser/scrape-jobs',
+    { query, source, location, limit },
+    { timeout: 120_000 },  // TinyFish sessions take up to 30s to start
+  );
+  return response.data as { success: boolean; source: string; total: number; jobs: any[] };
+};
+
+export const getApplyFields = async (jobUrl: string, resumeData: object) => {
+  const response = await apiClient.post(
+    '/browser/apply-fields',
+    { job_url: jobUrl, resume_data: resumeData },
+    { timeout: 120_000 },
+  );
+  return response.data as {
+    success: boolean;
+    fields: Array<{ label: string; type: string; name: string; suggested_value: string }>;
+    apply_url: string;
+    field_count: number;
+    error?: string;
+  };
+};
+
+export const researchCompanyBrowser = async (companyName: string, careerUrl = '') => {
+  const response = await apiClient.post(
+    '/browser/company-research',
+    { company_name: companyName, career_url: careerUrl },
+    { timeout: 120_000 },
+  );
+  return response.data as {
+    success: boolean;
+    company: string;
+    culture: string[];
+    benefits: string[];
+    tech_stack: string[];
+    open_roles_count: number;
+    hiring_locations: string[];
+    remote_policy: string;
+    unique_highlights: string[];
+    summary: string;
+    source_url: string;
+    error?: string;
+  };
+};
+
+/** SSE streaming chat — yields tokens as they arrive from the backend. */
+export async function* streamChat(
+  message: string,
+  history: Array<{ role: string; text: string }>,
+  modelTier = 'balanced',
+): AsyncGenerator<string> {
+  const base = (import.meta.env.VITE_API_URL ?? '') + '/api';
+  const res = await fetch(`${base}/career/chat/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, history, model_tier: modelTier }),
+  });
+  if (!res.ok) throw new Error(`Stream error ${res.status}`);
+
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() ?? '';
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const payload = line.slice(6).trim();
+      if (payload === '[DONE]') return;
+      try {
+        const data = JSON.parse(payload);
+        if (data.error) throw new Error(data.error);
+        if (data.token) yield data.token;
+      } catch (e) {
+        if ((e as Error).message?.startsWith('Stream error') || (e as any)?.message?.includes('error')) throw e;
+      }
+    }
+  }
+}

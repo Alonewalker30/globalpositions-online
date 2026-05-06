@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Syne:wght@600;700;800&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -15,11 +15,11 @@
   --border-md:    rgba(0,0,0,.12);
   --border-strong:rgba(0,0,0,.18);
 
-  /* ── Accent — Indigo / Violet ── */
-  --accent:       #6366F1;
-  --accent-hover: #4F46E5;
-  --accent-dim:   rgba(99,102,241,.10);
-  --accent-glow:  rgba(99,102,241,.20);
+  /* ── Accent — Electric Blue ── */
+  --accent:       #2563EB;
+  --accent-hover: #1D4ED8;
+  --accent-dim:   rgba(37,99,235,.10);
+  --accent-glow:  rgba(37,99,235,.20);
   --violet:       #8B5CF6;
   --violet-dim:   rgba(139,92,246,.10);
   --cyan:         #06B6D4;
@@ -40,10 +40,10 @@
 
   /* ── Legacy aliases (keeps old component refs working) ── */
   --navy:         #111827;
-  --blue:         #6366F1;
-  --blue-hover:   #4F46E5;
-  --blue-light:   rgba(99,102,241,.10);
-  --blue-mid:     rgba(99,102,241,.25);
+  --blue:         #2563EB;
+  --blue-hover:   #1D4ED8;
+  --blue-light:   rgba(37,99,235,.10);
+  --blue-mid:     rgba(37,99,235,.25);
   --slate-800:    #1E293B;
   --slate-600:    #64748B;
   --slate-400:    #94A3B8;
@@ -64,11 +64,35 @@
   --radius-sm:    8px;
   --radius-lg:    18px;
   --shadow:       0 1px 3px rgba(0,0,0,.07), 0 0 0 1px rgba(0,0,0,.04);
-  --shadow-md:    0 4px 16px rgba(0,0,0,.08), 0 0 0 1px rgba(99,102,241,.08);
-  --shadow-lg:    0 12px 40px rgba(0,0,0,.10), 0 0 0 1px rgba(99,102,241,.12);
-  --glow:         0 0 30px rgba(99,102,241,.12);
+  --shadow-md:    0 4px 16px rgba(0,0,0,.08), 0 0 0 1px rgba(37,99,235,.08);
+  --shadow-lg:    0 12px 40px rgba(0,0,0,.10), 0 0 0 1px rgba(37,99,235,.12);
+  --glow:         0 0 30px rgba(37,99,235,.12);
 
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  /* ── Typography ── */
+  --font-heading: 'Syne', system-ui, sans-serif;
+  --font-body:    'Inter', system-ui, -apple-system, sans-serif;
+
+  /* ── Type scale ── */
+  --font-xs:   11px;
+  --font-sm:   12px;
+  --font-base: 13px;
+  --font-md:   14px;
+  --font-lg:   16px;
+  --font-xl:   20px;
+  --font-2xl:  24px;
+  --font-3xl:  32px;
+
+  /* ── Spacing scale ── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  font-family: var(--font-body);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

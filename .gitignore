@@ -10,3 +10,4 @@ dist/
 .idea/
 career-ops/
 public-apis/
+.gstack/

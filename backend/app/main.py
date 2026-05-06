@@ -1,5 +1,10 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+import asyncio
 import logging
 from typing import Optional
 import json
@@ -28,6 +33,10 @@ app = FastAPI(
     description="Advanced AI-powered resume builder for ATS optimization",
     version="1.0.0"
 )
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure CORS
 app.add_middleware(
@@ -246,7 +255,9 @@ RESUME TEXT:
 
 
 @app.post("/api/resume/parse-ai")
+@limiter.limit("5/minute")
 async def parse_resume_ai(
+    request: Request,
     file: Optional[UploadFile] = File(None),
     resume_text: Optional[str] = Form(None),
 ):
@@ -479,7 +490,8 @@ async def get_career_intelligence(request: CareerIntelligenceRequest):
 
 
 @app.get("/api/jobs/career")
-async def get_career_jobs(query: str = "software engineer", limit: int = 80):
+@limiter.limit("10/minute")
+async def get_career_jobs(request: Request, query: str = "software engineer", limit: int = 80):
     """
     Fetch jobs with direct career-page links from Greenhouse ATS boards.
     All results are full long-form applications — no easy-apply / job-board links.
@@ -490,7 +502,10 @@ async def get_career_jobs(query: str = "software engineer", limit: int = 80):
              Neo4j, Twitch and more.
     """
     try:
-        jobs = job_aggregator_svc.get_career_jobs(query=query, limit=min(limit, 120))
+        loop = asyncio.get_running_loop()
+        jobs = await loop.run_in_executor(
+            None, lambda: job_aggregator_svc.get_career_jobs(query=query, limit=min(limit, 120))
+        )
         return {"success": True, "total": len(jobs), "jobs": jobs}
     except Exception as e:
         logger.error("Career jobs error: %s", e)
@@ -543,6 +558,7 @@ async def get_trending_skills():
 class ChatRequest(PydanticBaseModel):
     message: str
     history: Optional[list] = []
+    model_tier: Optional[str] = "balanced"
 
 
 @app.post("/api/career/chat")
@@ -563,7 +579,7 @@ async def career_chat(req: ChatRequest):
         # Keep up to 30 history messages for full conversation context
         history = (req.history or [])[-30:]
 
-        if claude_service.mode in ("groq", "nvidia"):
+        if claude_service.mode != "anthropic":
             msgs = [{"role": "system", "content": system}]
             for h in history:
                 role = h.get("role", "user")
@@ -608,6 +624,155 @@ async def rewrite_resume(req: ResumeRewriteRequest):
         return {"success": True, **result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/career/chat/stream")
+@limiter.limit("20/minute")
+async def career_chat_stream(request: Request, req: ChatRequest):
+    """SSE streaming version of /api/career/chat. Sends tokens as they arrive."""
+    system = (
+        "You are an expert AI Career Copilot for GlobalPositions.online. "
+        "You help professionals with job searching, resume writing, ATS optimization, "
+        "salary negotiation, career transitions, interview prep, skill development, "
+        "and career strategy. "
+        "Be thorough, direct, and actionable. Use markdown formatting (bold, bullet points, "
+        "numbered lists, headers) to structure your answers clearly. "
+        "When the user pastes a resume or job description, analyze it in full. "
+        "Always give complete, production-ready advice."
+    )
+    history = (req.history or [])[-30:]
+    tier = req.model_tier or "balanced"
+
+    chat_client, chat_model = claude_service.get_model_for_tier(tier)
+    is_openai_compat = claude_service.mode != "anthropic" or chat_client is not claude_service.client
+
+    msgs: list = [{"role": "system", "content": system}]
+    for h in history:
+        role = h.get("role", "user")
+        text = h.get("text", "")
+        if role in ("user", "assistant") and text:
+            msgs.append({"role": role, "content": text})
+    msgs.append({"role": "user", "content": req.message})
+
+    def event_stream():
+        try:
+            if is_openai_compat:
+                stream = chat_client.chat.completions.create(
+                    model=chat_model, max_tokens=2048, messages=msgs, stream=True,
+                )
+                for chunk in stream:
+                    delta = chunk.choices[0].delta.content or ""
+                    if delta:
+                        yield f"data: {json.dumps({'token': delta})}\n\n"
+            else:
+                with claude_service.client.messages.stream(
+                    model=chat_model, max_tokens=2048, system=system,
+                    messages=[m for m in msgs if m["role"] != "system"],
+                ) as stream:
+                    for text in stream.text_stream:
+                        yield f"data: {json.dumps({'token': text})}\n\n"
+        except Exception as exc:
+            logger.exception("stream error: %s", exc)
+            yield f"data: {json.dumps({'error': str(exc)})}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ==================== TINYFISH BROWSER ENDPOINTS ====================
+
+class ScrapeJobsRequest(PydanticBaseModel):
+    query: str
+    source: str = "linkedin"   # linkedin | indeed | glassdoor
+    location: str = ""
+    limit: int = 30
+
+
+@app.post("/api/browser/scrape-jobs")
+@limiter.limit("5/minute")
+async def browser_scrape_jobs(request: Request, req: ScrapeJobsRequest):
+    """Scrape jobs from LinkedIn, Indeed, or Glassdoor via TinyFish remote browser."""
+    try:
+        from app.modules.tinyfish_service import scrape_jobs
+        jobs = await scrape_jobs(
+            query=req.query,
+            source=req.source,
+            location=req.location,
+            limit=min(req.limit, 50),
+        )
+        return {"success": True, "source": req.source, "total": len(jobs), "jobs": jobs}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("browser_scrape_jobs error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class ApplyFieldsRequest(PydanticBaseModel):
+    job_url: str
+    resume_data: dict = {}
+
+
+@app.post("/api/browser/apply-fields")
+@limiter.limit("10/minute")
+async def browser_apply_fields(request: Request, req: ApplyFieldsRequest):
+    """Navigate to a job apply page and return detected form fields with suggested values."""
+    try:
+        from app.modules.tinyfish_service import get_apply_fields
+        result = await get_apply_fields(req.job_url, req.resume_data)
+        return {"success": True, **result}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("browser_apply_fields error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class CompanyResearchBrowserRequest(PydanticBaseModel):
+    company_name: str
+    career_url: str = ""
+
+
+@app.post("/api/browser/company-research")
+@limiter.limit("10/minute")
+async def browser_company_research(request: Request, req: CompanyResearchBrowserRequest):
+    """Browse company career page and return AI-structured summary via TinyFish."""
+    try:
+        from app.modules.tinyfish_service import research_company_browser
+        result = await research_company_browser(req.company_name, req.career_url)
+        return {"success": True, **result}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("browser_company_research error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ai/providers")
+async def get_ai_providers():
+    """Show which AI providers are configured and the active fallback chain."""
+    providers = {
+        "active_primary": claude_service.mode,
+        "active_model": claude_service.model,
+        "fallback_chain": [],
+    }
+    chain = []
+    if claude_service._cerebras_client:
+        chain.append({"name": "Cerebras", "models": ["llama3.1-8b (fast)", "llama-3.3-70b (quality)"], "free": True})
+    if claude_service.mode == "nvidia":
+        chain.append({"name": "NVIDIA NIM", "models": [claude_service.model], "free": True})
+    if claude_service._groq_client:
+        chain.append({"name": "Groq", "models": ["llama-3.1-8b-instant (fast)", "llama-3.3-70b-versatile (quality)"], "free": True})
+    if claude_service._together_client:
+        chain.append({"name": "Together AI", "models": ["Llama-3.3-70B-Instruct-Turbo"], "free": True})
+    if claude_service.mode == "anthropic":
+        chain.append({"name": "Anthropic Claude", "models": [claude_service.model], "free": False})
+    providers["fallback_chain"] = chain
+    return {"success": True, **providers}
 
 
 if __name__ == "__main__":

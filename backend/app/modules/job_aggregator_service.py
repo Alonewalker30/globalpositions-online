@@ -5,8 +5,10 @@ All URLs are direct career-page or job-board links.
 
 import httpx
 import logging
+import threading
 import time
 import re
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict
@@ -123,6 +125,30 @@ GREENHOUSE_BOARDS: Dict[str, str] = {
     "moderntreasury":   "Modern Treasury",
 }
 
+# ── Ashby boards ─────────────────────────────────────────────────────────────
+ASHBY_BOARDS: Dict[str, str] = {
+    "linear":       "Linear",
+    "loom":         "Loom",
+    "runway":       "Runway ML",
+    "perplexity":   "Perplexity AI",
+    "cursor":       "Cursor",
+    "replit":       "Replit",
+    "mistral":      "Mistral AI",
+    "moonvalley":   "Moon Valley",
+    "midjourney":   "Midjourney",
+    "harvey":       "Harvey",
+    "ramp":         "Ramp",
+    "anysphere":    "Anysphere",
+    "codeium":      "Codeium",
+    "together":     "Together AI",
+    "modal":        "Modal",
+    "prefect":      "Prefect",
+    "temporal":     "Temporal",
+    "sourcegraph":  "Sourcegraph",
+    "clickhouse":   "ClickHouse",
+    "supabase":     "Supabase",
+}
+
 # ── Lever boards ─────────────────────────────────────────────────────────────
 LEVER_BOARDS: Dict[str, str] = {
     "spotify":          "Spotify",
@@ -147,8 +173,10 @@ _TECH_ROLES = {
     "sap", "erp", "crm", "salesforce", "oracle", "sap", "tableau",
 }
 
-_CACHE: Dict[str, tuple] = {}
+_CACHE: OrderedDict = OrderedDict()
+_CACHE_LOCK = threading.Lock()
 _CACHE_TTL = 600
+_CACHE_MAX = 50
 
 
 def _matches(title: str, query_tokens: List[str]) -> bool:
@@ -374,6 +402,136 @@ def _fetch_himalayas(query_tokens: List[str]) -> List[Dict]:
     return jobs
 
 
+def _fetch_ashby(slug: str, name: str, query_tokens: List[str]) -> List[Dict]:
+    try:
+        with httpx.Client(timeout=10) as client:
+            r = client.get(
+                f"https://api.ashbyhq.com/posting-api/job-board/{slug}",
+                headers={"User-Agent": "CareerBot/1.0"},
+            )
+            r.raise_for_status()
+        data = r.json()
+    except Exception as exc:
+        logger.debug("Ashby %s failed: %s", slug, exc)
+        return []
+
+    jobs = []
+    for j in data.get("jobs", []):
+        title = j.get("title", "")
+        if not _matches(title, query_tokens):
+            continue
+        url = j.get("jobUrl") or j.get("applyUrl", "")
+        if not url:
+            continue
+        team_raw = j.get("team", "")
+        team = (team_raw.get("name", "") if isinstance(team_raw, dict) else team_raw) or j.get("department", "")
+        location = j.get("location") or ("Remote" if j.get("isRemote") else "On-site")
+        jobs.append({
+            "title":     title,
+            "company":   name,
+            "location":  location,
+            "salary":    "",
+            "tags":      [team] if team else [],
+            "url":       url,
+            "posted_at": j.get("publishedAt", ""),
+            "source":    "Ashby",
+            "ats":       "ashby",
+        })
+    return jobs
+
+
+def _fetch_jobicy(query_tokens: List[str]) -> List[Dict]:
+    tag = " ".join(query_tokens[:2]) if query_tokens else "software engineer"
+    try:
+        with httpx.Client(timeout=15) as client:
+            r = client.get(
+                "https://jobicy.com/api/v2/remote-jobs",
+                params={"count": 50, "tag": tag},
+                headers={"User-Agent": "CareerBot/1.0"},
+            )
+            r.raise_for_status()
+        data = r.json()
+    except Exception as exc:
+        logger.debug("Jobicy failed: %s", exc)
+        return []
+
+    jobs = []
+    for j in data.get("jobs", []):
+        url = j.get("url", "")
+        if not url:
+            continue
+        industries = j.get("jobIndustry") or []
+        job_types  = j.get("jobType") or []
+        tags = list({t for t in (industries + job_types) if t})[:4]
+        jobs.append({
+            "title":     j.get("jobTitle", ""),
+            "company":   j.get("companyName", ""),
+            "location":  j.get("jobGeo", "Remote") or "Remote",
+            "salary":    j.get("annualSalaryMin", "") and f"${j['annualSalaryMin']:,}+" or "",
+            "tags":      tags,
+            "url":       url,
+            "posted_at": j.get("pubDate", ""),
+            "source":    "Jobicy",
+            "ats":       "jobicy",
+        })
+    return jobs
+
+
+def _fetch_adzuna(query_tokens: List[str]) -> List[Dict]:
+    from app.config import settings
+    app_id  = (settings.adzuna_app_id  or "").strip()
+    api_key = (settings.adzuna_api_key or "").strip()
+    if not app_id or not api_key:
+        return []
+    query_str = " ".join(query_tokens) or "software engineer"
+    try:
+        with httpx.Client(timeout=15) as client:
+            r = client.get(
+                "https://api.adzuna.com/v1/api/jobs/us/search/1",
+                params={
+                    "app_id":           app_id,
+                    "app_key":          api_key,
+                    "results_per_page": 50,
+                    "what":             query_str,
+                    "sort_by":          "date",
+                    "content-type":     "application/json",
+                },
+                headers={"User-Agent": "CareerBot/1.0"},
+            )
+            r.raise_for_status()
+        data = r.json()
+    except Exception as exc:
+        logger.debug("Adzuna failed: %s", exc)
+        return []
+
+    jobs = []
+    for j in data.get("results", []):
+        url = j.get("redirect_url", "")
+        if not url:
+            continue
+        sal_min = j.get("salary_min")
+        sal_max = j.get("salary_max")
+        if sal_min and sal_max:
+            salary = f"${int(sal_min):,}–${int(sal_max):,}"
+        elif sal_min:
+            salary = f"${int(sal_min):,}+"
+        else:
+            salary = ""
+        category = (j.get("category") or {}).get("label", "")
+        jobs.append({
+            "title":     j.get("title", ""),
+            "company":   (j.get("company") or {}).get("display_name", ""),
+            "location":  (j.get("location") or {}).get("display_name", ""),
+            "salary":    salary,
+            "tags":      [category] if category else [],
+            "url":       url,
+            "posted_at": j.get("created", ""),
+            "source":    "Adzuna",
+            "ats":       "adzuna",
+        })
+    return jobs
+
+
 def _is_within_days(posted_at: str, days: int = 30) -> bool:
     if not posted_at:
         return True
@@ -391,8 +549,9 @@ def _is_within_days(posted_at: str, days: int = 30) -> bool:
 class JobAggregatorService:
 
     def get_career_jobs(self, query: str, limit: int = 200) -> List[Dict]:
-        cache_key = query.lower().strip()
-        cached = _CACHE.get(cache_key)
+        cache_key = query.strip().lower()
+        with _CACHE_LOCK:
+            cached = _CACHE.get(cache_key)
         if cached and (time.time() - cached[0]) < _CACHE_TTL:
             logger.info("Job cache hit for '%s'", query)
             return cached[1]
@@ -400,17 +559,21 @@ class JobAggregatorService:
         query_tokens = [tok.lower() for tok in query.split() if len(tok) > 2]
 
         all_jobs: List[Dict] = []
-        max_workers = len(GREENHOUSE_BOARDS) + len(LEVER_BOARDS) + 3
+        max_workers = len(GREENHOUSE_BOARDS) + len(LEVER_BOARDS) + len(ASHBY_BOARDS) + 6
 
-        with ThreadPoolExecutor(max_workers=min(max_workers, 60)) as pool:
+        with ThreadPoolExecutor(max_workers=min(max_workers, 30)) as pool:
             futures = {}
             for slug, name in GREENHOUSE_BOARDS.items():
                 futures[pool.submit(_fetch_greenhouse, slug, name, query_tokens)] = slug
             for slug, name in LEVER_BOARDS.items():
                 futures[pool.submit(_fetch_lever, slug, name, query_tokens)] = f"lever:{slug}"
+            for slug, name in ASHBY_BOARDS.items():
+                futures[pool.submit(_fetch_ashby, slug, name, query_tokens)] = f"ashby:{slug}"
             futures[pool.submit(_fetch_himalayas, query_tokens)]  = "_himalayas"
             futures[pool.submit(_fetch_remotive, query_tokens)]   = "_remotive"
             futures[pool.submit(_fetch_arbeitnow, query_tokens)]  = "_arbeitnow"
+            futures[pool.submit(_fetch_jobicy, query_tokens)]     = "_jobicy"
+            futures[pool.submit(_fetch_adzuna, query_tokens)]     = "_adzuna"
 
             for future in as_completed(futures):
                 try:
@@ -437,7 +600,10 @@ class JobAggregatorService:
         unique.sort(key=score, reverse=True)
         result = unique[:limit]
 
-        _CACHE[cache_key] = (time.time(), result)
+        with _CACHE_LOCK:
+            _CACHE[cache_key] = (time.time(), result)
+            if len(_CACHE) > _CACHE_MAX:
+                _CACHE.popitem(last=False)
         logger.info(
             "Jobs for '%s': %d results (raw %d) — GH:%d Lever:%d Remotive/Himalayas/Arbeitnow included",
             query, len(result), len(all_jobs),

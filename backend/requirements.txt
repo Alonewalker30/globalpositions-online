@@ -17,3 +17,5 @@ aiofiles==23.2.1
 python-dotenv==1.0.0
 cors==1.0.1
 httpx==0.25.2
+slowapi==0.1.9
+playwright>=1.40.0

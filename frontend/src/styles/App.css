@@ -1,3 +1,8 @@
+/* ── Syne heading font application (TODO 2) ── */
+.dash-title, .dash-eyebrow, .stat-value,
+.topbar-title, .section-heading, .panel-title,
+.jb-detail-title, .chat-title { font-family: var(--font-heading); }
+
 /* ═══════════════════════════════════════════════════
    LAYOUT SHELL
 ═══════════════════════════════════════════════════ */
@@ -377,6 +382,25 @@
 
 .stat-value { font-size: 22px; font-weight: 800; color: var(--navy); line-height: 1.1; }
 .stat-label { font-size: 12px; color: var(--slate-400); margin-top: 2px; }
+.stat-hint  { font-size: 11px; color: var(--accent); margin-top: 3px; font-weight: 500; }
+.stat-retry-btn { margin-left: auto; padding: 5px; border-radius: 6px; color: var(--red); background: var(--red-dim); display: flex; align-items: center; }
+.stat-retry-btn:hover { background: var(--red); color: #fff; }
+
+/* ── Quick Action Bar (TODO 7) ── */
+.quick-action-bar { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.quick-action-item { position: relative; flex: 1; display: flex; align-items: center; gap: 10px; padding: 14px 16px; background: none; border: none; cursor: pointer; text-align: left; transition: background .15s; }
+.quick-action-item:hover { background: var(--overlay); }
+.quick-action-icon { color: var(--accent); flex-shrink: 0; }
+.quick-action-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.quick-action-label { font-size: 13px; font-weight: 600; color: var(--text-1); }
+.quick-action-sub   { font-size: 11px; color: var(--text-3); }
+.quick-action-chevron { color: var(--text-3); flex-shrink: 0; }
+.quick-action-sep { position: absolute; right: 0; top: 20%; height: 60%; width: 1px; background: var(--border); }
+
+/* ── Inline error state (TODO 9) ── */
+.inline-error-state { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--red-dim); border-radius: var(--radius-sm); color: var(--red); font-size: 13px; }
+.inline-retry-btn { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--red); color: var(--red); background: none; cursor: pointer; }
+.inline-retry-btn:hover { background: var(--red); color: #fff; }
 
 .quick-grid {
   display: grid;
@@ -1600,6 +1624,40 @@
 .jb-quick-chip:hover, .jb-quick-chip.active {
   background: var(--accent); color: #fff; border-color: var(--accent);
 }
+/* Browser source chips */
+.jb-browser-sources { display: flex; align-items: center; gap: 6px; }
+.jb-browser-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 11px; border-radius: 99px; font-size: 11px; font-weight: 600;
+  background: var(--accent-dim); color: var(--accent); border: 1.5px solid var(--accent);
+  cursor: pointer; transition: all .15s;
+}
+.jb-browser-chip:hover, .jb-browser-chip.active { background: var(--accent); color: #fff; }
+.jb-browser-chip:disabled { opacity: .6; cursor: wait; }
+.jb-browser-chip-reset {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: 99px; font-size: 11px;
+  background: var(--overlay); color: var(--text-2); border: 1px solid var(--border);
+  cursor: pointer;
+}
+
+/* Smart Apply field list */
+.apply-fields-list { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+.apply-field-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: var(--overlay); border-radius: 7px; font-size: 12px; }
+.apply-field-label { color: var(--text-2); font-weight: 500; }
+.apply-field-value { color: var(--text-1); font-weight: 600; max-width: 55%; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Company intel card */
+.company-intel-card { margin-top: 12px; padding: 14px; background: var(--overlay); border-radius: 10px; display: flex; flex-direction: column; gap: 10px; }
+.company-intel-summary { font-size: 13px; color: var(--text-1); line-height: 1.5; }
+.company-intel-badge { display: inline-block; padding: 3px 10px; border-radius: 99px; background: var(--accent-dim); color: var(--accent); font-size: 11px; font-weight: 600; text-transform: capitalize; }
+.company-intel-section { display: flex; flex-direction: column; gap: 6px; }
+.company-intel-section strong { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); }
+.company-intel-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.company-intel-list { padding-left: 16px; list-style: disc; display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--text-2); }
+.company-intel-source { font-size: 11px; color: var(--text-3); display: inline-flex; align-items: center; gap: 4px; }
+.company-intel-source:hover { color: var(--accent); }
+
 .jb-sort-control {
   display: flex; align-items: center; gap: 5px; margin-left: auto;
   font-size: 12px; color: var(--text-2);
@@ -1698,6 +1756,7 @@
 }
 .jb-save-btn:hover { border-color: var(--accent); color: var(--accent); }
 .jb-save-btn.saved { border-color: var(--accent); color: var(--accent); background: #ede9fe; }
+.jb-optimize-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 8px 14px; border-radius: 8px; white-space: nowrap; }
 
 .jb-detail-body { padding: 20px; display: flex; flex-direction: column; gap: 20px; }
 .jb-detail-section { display: flex; flex-direction: column; gap: 8px; }
@@ -2645,3 +2704,35 @@
   z-index: 1;
 }
 .char-count { color: var(--text-3) !important; }
+
+/* ── Model tier selector (TopBar / AI Copilot) ── */
+.model-tier-selector {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+}
+.tier-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.tier-chip:hover { background: var(--overlay); color: var(--text-1); }
+.tier-chip.active {
+  background: var(--accent);
+  color: #fff;
+}
+.tier-chip.active:hover { background: var(--accent-hover, #1D4ED8); }

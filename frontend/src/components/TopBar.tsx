@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Bell, X } from 'lucide-react';
+import { Search, Bell, X, Zap, BarChart2, Star } from 'lucide-react';
 
 const PAGE_TITLES: Record<string, { title: string; sub: string }> = {
   dashboard: { title: 'Dashboard',        sub: 'Your career overview at a glance' },
@@ -8,6 +8,12 @@ const PAGE_TITLES: Record<string, { title: string; sub: string }> = {
   career:    { title: 'Career Intel',     sub: 'Live market data, trends & learning resources' },
   copilot:   { title: 'AI Copilot',       sub: 'Your 24/7 career assistant' },
 };
+
+const TIERS = [
+  { id: 'fast',     label: 'Fast',     icon: <Zap size={11} />,      title: 'Cerebras/Groq 8B — fastest responses' },
+  { id: 'balanced', label: 'Balanced', icon: <BarChart2 size={11} />, title: 'Cerebras/Groq 70B — speed + quality (default)' },
+  { id: 'quality',  label: 'Quality',  icon: <Star size={11} />,      title: 'Best available model — slower but sharpest' },
+];
 
 interface TopBarProps {
   page: string;
@@ -18,6 +24,14 @@ interface TopBarProps {
 export default function TopBar({ page, searchQuery, onSearch }: TopBarProps) {
   const meta = PAGE_TITLES[page] ?? PAGE_TITLES.dashboard;
   const [searchOpen, setSearchOpen] = useState(false);
+  const [modelTier, setModelTier] = useState(
+    () => localStorage.getItem('model_tier') ?? 'balanced'
+  );
+
+  const selectTier = (id: string) => {
+    localStorage.setItem('model_tier', id);
+    setModelTier(id);
+  };
 
   return (
     <header className="topbar">
@@ -27,7 +41,24 @@ export default function TopBar({ page, searchQuery, onSearch }: TopBarProps) {
       </div>
 
       <div className="topbar-right">
-        {/* Animated search — inspired by Frontend-Projects/Search bar animation */}
+        {/* Model tier selector — only on copilot page */}
+        {page === 'copilot' && (
+          <div className="model-tier-selector">
+            {TIERS.map(t => (
+              <button
+                key={t.id}
+                className={`tier-chip${modelTier === t.id ? ' active' : ''}`}
+                onClick={() => selectTier(t.id)}
+                title={t.title}
+              >
+                {t.icon}
+                <span>{t.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Animated search */}
         <div className={`topbar-search-wrap ${searchOpen ? 'open' : ''}`}>
           <input
             className="topbar-search-input"

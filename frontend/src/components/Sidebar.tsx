@@ -62,7 +62,7 @@ export default function Sidebar({ active, onChange, collapsed, onToggle }: Sideb
       {/* Bottom */}
       <div className="sidebar-bottom">
         <div className="sidebar-divider" />
-        <button className="sidebar-collapse-btn" onClick={onToggle} title="Toggle sidebar">
+        <button className="sidebar-collapse-btn" onClick={onToggle} title="Toggle sidebar" aria-label="Toggle sidebar">
           <ChevronLeft
             size={15}
             style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform .3s' }}

@@ -2,9 +2,9 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Search, ExternalLink, Loader, Briefcase, Bookmark, BookmarkCheck,
   Building2, MapPin, X, SlidersHorizontal, ChevronDown, DollarSign,
-  Clock, Globe, ArrowUpDown,
+  Clock, Globe, ArrowUpDown, Zap, Brain, RefreshCw,
 } from 'lucide-react';
-import { getCareerPageJobs } from '../services/api';
+import { getCareerPageJobs, scrapeJobsBrowser, getApplyFields, researchCompanyBrowser, type BrowserJobSource } from '../services/api';
 import { toast } from './Toast';
 
 interface Job {
@@ -13,7 +13,7 @@ interface Job {
   ats?: string; match_score?: number; company_logo?: string;
 }
 
-interface JobsPanelProps { searchQuery: string; }
+interface JobsPanelProps { searchQuery: string; onNavigate?: (page: string) => void; }
 
 const BOOKMARKS_KEY = 'saved_jobs';
 export const getSavedJobs = (): Job[] => { try { return JSON.parse(localStorage.getItem(BOOKMARKS_KEY) || '[]'); } catch { return []; } };
@@ -57,7 +57,13 @@ function inferExpLevel(title: string): string {
 
 function daysAgo(dateStr: string): number | null {
   if (!dateStr) return null;
-  try { return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000); } catch { return null; }
+  try {
+    const ms = /^\d{10,}$/.test(dateStr.trim())
+      ? parseInt(dateStr) * (dateStr.trim().length === 10 ? 1000 : 1)
+      : new Date(dateStr).getTime();
+    if (isNaN(ms)) return null;
+    return Math.floor((Date.now() - ms) / 86400000);
+  } catch { return null; }
 }
 
 function formatAgo(days: number | null): string {
@@ -74,6 +80,9 @@ const SOURCE_COLORS: Record<string, string> = {
   Remotive:   '#8b5cf6',
   Himalayas:  '#f59e0b',
   Arbeitnow:  '#ef4444',
+  Ashby:      '#0ea5e9',
+  Jobicy:     '#10b981',
+  Adzuna:     '#f97316',
 };
 
 /* ─── Compact Job Card (list view) ─── */
@@ -103,8 +112,8 @@ function JobCard({ job, selected, onClick }: { job: Job; selected: boolean; onCl
           </div>
           <div className="jb-card-meta">
             {job.location && <span className="jb-meta-chip"><MapPin size={10} />{job.location}</span>}
-            <span className={`jb-work-chip wt-${workType.toLowerCase().replace('-','')}`}>{workType}</span>
-            <span className="jb-exp-chip">{exp}</span>
+            <span className={`jb-work-chip wt-${workType.toLowerCase().replace('-','')}`} title="Estimated from job title and location">{workType} *</span>
+            <span className="jb-exp-chip" title="Estimated from job title">{exp} *</span>
             {job.salary && <span className="jb-salary-chip"><DollarSign size={10}/>{job.salary}</span>}
           </div>
           <div className="jb-card-footer">
@@ -113,7 +122,7 @@ function JobCard({ job, selected, onClick }: { job: Job; selected: boolean; onCl
             {days !== null && <span className="jb-date-label"><Clock size={10}/>{formatAgo(days)}</span>}
           </div>
         </div>
-        <button className={`bookmark-btn ${saved ? 'saved' : ''}`} onClick={toggleSave}>
+        <button className={`bookmark-btn ${saved ? 'saved' : ''}`} onClick={toggleSave} aria-label={saved ? 'Remove from saved jobs' : 'Save job'}>
           {saved ? <BookmarkCheck size={14}/> : <Bookmark size={14}/>}
         </button>
       </div>
@@ -122,8 +131,12 @@ function JobCard({ job, selected, onClick }: { job: Job; selected: boolean; onCl
 }
 
 /* ─── Job Detail Panel ─── */
-function JobDetailPanel({ job, onClose }: { job: Job; onClose: () => void }) {
+function JobDetailPanel({ job, onClose, onNavigate }: { job: Job; onClose: () => void; onNavigate?: (page: string) => void }) {
   const [saved, setSaved] = useState(() => getSavedJobs().some(j => j.url === job.url));
+  const [applyFields, setApplyFields]   = useState<any[] | null>(null);
+  const [applyLoading, setApplyLoading] = useState(false);
+  const [companyInfo, setCompanyInfo]   = useState<any | null>(null);
+  const [companyLoading, setCompanyLoading] = useState(false);
   const workType = inferWorkType(job);
   const exp = inferExpLevel(job.title);
   const days = daysAgo(job.posted_at);
@@ -133,6 +146,27 @@ function JobDetailPanel({ job, onClose }: { job: Job; onClose: () => void }) {
     const cur = getSavedJobs();
     if (saved) { persistSavedJobs(cur.filter(j => j.url !== job.url)); setSaved(false); toast('Removed', 'info'); }
     else { persistSavedJobs([...cur, job]); setSaved(true); toast('Saved!', 'success'); }
+  };
+
+  const handleSmartApply = async () => {
+    setApplyLoading(true); setApplyFields(null);
+    try {
+      const resumeData = JSON.parse(localStorage.getItem('resume_data') || '{}');
+      const res = await getApplyFields(job.url, resumeData);
+      setApplyFields(res.fields || []);
+      if (res.error) toast('Partial result — some fields may be missing', 'info');
+      else toast(`Found ${res.field_count} form fields`, 'success');
+    } catch { toast('Smart Apply failed — check TINYFISH_API_KEY', 'error'); }
+    finally { setApplyLoading(false); }
+  };
+
+  const handleCompanyResearch = async () => {
+    setCompanyLoading(true); setCompanyInfo(null);
+    try {
+      const res = await researchCompanyBrowser(job.company);
+      setCompanyInfo(res);
+    } catch { toast('Company research failed', 'error'); }
+    finally { setCompanyLoading(false); }
   };
 
   return (
@@ -148,8 +182,8 @@ function JobDetailPanel({ job, onClose }: { job: Job; onClose: () => void }) {
         </div>
         <div className="jb-detail-meta">
           {job.location && <span className="jb-meta-chip"><MapPin size={11}/>{job.location}</span>}
-          <span className={`jb-work-chip wt-${workType.toLowerCase().replace('-','')}`}>{workType}</span>
-          <span className="jb-exp-chip">{exp}</span>
+          <span className={`jb-work-chip wt-${workType.toLowerCase().replace('-','')}`} title="Estimated from job title and location">{workType} *</span>
+          <span className="jb-exp-chip" title="Estimated from job title">{exp} *</span>
           {job.salary && <span className="jb-salary-chip"><DollarSign size={11}/>{job.salary}</span>}
         </div>
         <div className="jb-detail-source">
@@ -171,6 +205,15 @@ function JobDetailPanel({ job, onClose }: { job: Job; onClose: () => void }) {
           <button className={`jb-save-btn ${saved ? 'saved' : ''}`} onClick={toggleSave}>
             {saved ? <><BookmarkCheck size={14}/> Saved</> : <><Bookmark size={14}/> Save</>}
           </button>
+          {onNavigate && (
+            <button className="btn-ghost jb-optimize-btn" onClick={() => {
+              const desc = [job.title, job.company && `at ${job.company}`, job.tags?.filter(Boolean).join(', ')].filter(Boolean).join('\n');
+              localStorage.setItem('pending_job_description', desc);
+              onNavigate('resume');
+            }}>
+              <Briefcase size={13}/> Optimize resume →
+            </button>
+          )}
         </div>
       </div>
 
@@ -204,6 +247,69 @@ function JobDetailPanel({ job, onClose }: { job: Job; onClose: () => void }) {
             View Full Job & Apply <ExternalLink size={13}/>
           </a>
         </div>
+
+        {/* Smart Apply */}
+        <div className="jb-detail-section">
+          <div className="jb-detail-section-title"><Zap size={13} style={{ display:'inline', marginRight:5 }}/>Smart Apply</div>
+          <p className="jb-detail-note">Opens the apply page in a real browser and detects form fields — pre-filled with your resume data.</p>
+          <button className="btn-ghost btn-sm" onClick={handleSmartApply} disabled={applyLoading} style={{ marginTop: 8 }}>
+            {applyLoading ? <><Loader size={12} className="spin"/> Launching browser…</> : <><Zap size={12}/> Detect Apply Fields</>}
+          </button>
+          {applyFields !== null && (
+            <div className="apply-fields-list">
+              {applyFields.length === 0
+                ? <p className="jb-detail-note">No fillable fields detected on this page.</p>
+                : applyFields.map((f, i) => (
+                  <div key={i} className="apply-field-row">
+                    <span className="apply-field-label">{f.label || f.name}</span>
+                    <span className="apply-field-value">{f.suggested_value || <em style={{ color: 'var(--text-3)' }}>—</em>}</span>
+                  </div>
+                ))
+              }
+            </div>
+          )}
+        </div>
+
+        {/* Company Research */}
+        <div className="jb-detail-section">
+          <div className="jb-detail-section-title"><Brain size={13} style={{ display:'inline', marginRight:5 }}/>Company Intel</div>
+          <p className="jb-detail-note">Browse {job.company}'s career page and get an AI-structured summary of culture, benefits, and tech stack.</p>
+          <button className="btn-ghost btn-sm" onClick={handleCompanyResearch} disabled={companyLoading} style={{ marginTop: 8 }}>
+            {companyLoading ? <><Loader size={12} className="spin"/> Researching…</> : <><Brain size={12}/> Research {job.company}</>}
+          </button>
+          {companyInfo && !companyInfo.error && (
+            <div className="company-intel-card">
+              {companyInfo.summary && <p className="company-intel-summary">{companyInfo.summary}</p>}
+              {companyInfo.remote_policy && companyInfo.remote_policy !== 'unknown' && (
+                <div className="company-intel-badge">{companyInfo.remote_policy}</div>
+              )}
+              {companyInfo.tech_stack?.length > 0 && (
+                <div className="company-intel-section">
+                  <strong>Tech Stack</strong>
+                  <div className="company-intel-tags">{companyInfo.tech_stack.map((t: string, i: number) => <span key={i} className="tag">{t}</span>)}</div>
+                </div>
+              )}
+              {companyInfo.benefits?.length > 0 && (
+                <div className="company-intel-section">
+                  <strong>Benefits</strong>
+                  <ul className="company-intel-list">{companyInfo.benefits.map((b: string, i: number) => <li key={i}>{b}</li>)}</ul>
+                </div>
+              )}
+              {companyInfo.culture?.length > 0 && (
+                <div className="company-intel-section">
+                  <strong>Culture</strong>
+                  <ul className="company-intel-list">{companyInfo.culture.map((c: string, i: number) => <li key={i}>{c}</li>)}</ul>
+                </div>
+              )}
+              {companyInfo.source_url && (
+                <a href={companyInfo.source_url} target="_blank" rel="noopener noreferrer" className="company-intel-source">
+                  Source: {companyInfo.source_url} <ExternalLink size={10}/>
+                </a>
+              )}
+            </div>
+          )}
+          {companyInfo?.error && <p className="jb-detail-note" style={{ color: 'var(--red)' }}>Failed: {companyInfo.error}</p>}
+        </div>
       </div>
     </div>
   );
@@ -228,7 +334,7 @@ const DATE_OPTIONS = [
   { label: 'Past week', value: '7' },
   { label: 'Past month', value: '30' },
 ];
-const SOURCES = ['Greenhouse', 'Lever', 'Remotive', 'Himalayas', 'Arbeitnow'];
+const SOURCES = ['Greenhouse', 'Lever', 'Ashby', 'Remotive', 'Himalayas', 'Arbeitnow', 'Jobicy', 'Adzuna'];
 
 function toggleSet(s: Set<string>, val: string): Set<string> {
   const n = new Set(s); n.has(val) ? n.delete(val) : n.add(val); return n;
@@ -344,7 +450,13 @@ function ActiveFilters({ filters, onChange }: { filters: Filters; onChange: (f: 
 const PAGE_SIZE = 25;
 
 /* ─── Main Panel ─── */
-export default function JobsPanel({ searchQuery }: JobsPanelProps) {
+const BROWSER_SOURCES: { id: BrowserJobSource; label: string }[] = [
+  { id: 'linkedin',  label: 'LinkedIn'  },
+  { id: 'indeed',    label: 'Indeed'    },
+  { id: 'glassdoor', label: 'Glassdoor' },
+];
+
+export default function JobsPanel({ searchQuery, onNavigate }: JobsPanelProps) {
   const [query, setQuery]         = useState(searchQuery || 'software engineer');
   const [jobs, setJobs]           = useState<Job[]>([]);
   const [loading, setLoading]     = useState(false);
@@ -353,21 +465,34 @@ export default function JobsPanel({ searchQuery }: JobsPanelProps) {
   const [savedJobs, setSavedJobs] = useState<Job[]>(getSavedJobs);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [selectedJob, setSelectedJob]   = useState<Job | null>(null);
-  const [sort, setSort]           = useState<'relevance' | 'date'>('relevance');
+  const [sort, setSort]           = useState<'relevance' | 'date'>('date');
   const [filters, setFilters]     = useState<Filters>({
     workType: new Set(), expLevel: new Set(), jobType: new Set(),
-    datePosted: '30', location: '', source: new Set(),
+    datePosted: 'any', location: '', source: new Set(),
   });
+  const [browserSource, setBrowserSource] = useState<BrowserJobSource | null>(null);
+  const [browserLoading, setBrowserLoading] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const fetch_ = useCallback(async (q: string) => {
     setLoading(true); setError(''); setVisibleCount(PAGE_SIZE); setSelectedJob(null);
+    setBrowserSource(null);
     try {
       const d = await getCareerPageJobs(q, 300);
       setJobs(d.jobs || []);
     } catch { setError('Failed to load jobs. Check your connection.'); }
     finally { setLoading(false); }
   }, []);
+
+  const fetchBrowser = useCallback(async (source: BrowserJobSource) => {
+    setBrowserLoading(true); setBrowserSource(source); setError(''); setVisibleCount(PAGE_SIZE); setSelectedJob(null);
+    try {
+      const d = await scrapeJobsBrowser(query, source, '', 40);
+      setJobs(d.jobs || []);
+      if (!d.jobs?.length) setError(`No jobs found on ${source} for "${query}"`);
+    } catch { setError(`Failed to scrape ${source}. Check TINYFISH_API_KEY.`); }
+    finally { setBrowserLoading(false); }
+  }, [query]);
 
   useEffect(() => { fetch_(query); }, []);
   useEffect(() => { if (searchQuery && searchQuery !== query) { setQuery(searchQuery); fetch_(searchQuery); } }, [searchQuery]);
@@ -385,7 +510,7 @@ export default function JobsPanel({ searchQuery }: JobsPanelProps) {
       if (filters.jobType.has('Internship') && !j.title.toLowerCase().includes('intern')) return false;
       if (filters.datePosted !== 'any') {
         const d = daysAgo(j.posted_at);
-        if (d === null || d > parseInt(filters.datePosted)) return false;
+        if (d !== null && d > parseInt(filters.datePosted)) return false;
       }
       if (filters.location) {
         const loc = `${j.location} ${j.tags?.join(' ')}`.toLowerCase();
@@ -465,6 +590,26 @@ export default function JobsPanel({ searchQuery }: JobsPanelProps) {
               </button>
             );
           })}
+          <div className="jb-browser-sources">
+            <Zap size={11} style={{ color: 'var(--accent)' }}/>
+            {BROWSER_SOURCES.map(s => (
+              <button
+                key={s.id}
+                className={`jb-browser-chip ${browserSource === s.id ? 'active' : ''}`}
+                onClick={() => fetchBrowser(s.id)}
+                disabled={browserLoading}
+                title={`Scrape live jobs from ${s.label} using real browser`}
+              >
+                {browserLoading && browserSource === s.id ? <Loader size={10} className="spin"/> : null}
+                {s.label}
+              </button>
+            ))}
+            {browserSource && (
+              <button className="jb-browser-chip-reset" onClick={() => fetch_(query)} title="Back to ATS sources">
+                <RefreshCw size={10}/> ATS boards
+              </button>
+            )}
+          </div>
           <div className="jb-sort-control">
             <ArrowUpDown size={12}/>
             <select value={sort} onChange={e => setSort(e.target.value as any)} className="jb-sort-select">
@@ -488,7 +633,7 @@ export default function JobsPanel({ searchQuery }: JobsPanelProps) {
             {tab === 'live' && (
               <div className="jb-results-bar">
                 <span className="jb-results-count">
-                  <Globe size={12}/> {totalLabel.toLocaleString()} jobs · 5 sources
+                  <Globe size={12}/> {totalLabel.toLocaleString()} jobs · 8 sources
                 </span>
                 <ActiveFilters filters={filters} onChange={setFilters}/>
               </div>
@@ -541,7 +686,7 @@ export default function JobsPanel({ searchQuery }: JobsPanelProps) {
           {/* Detail panel */}
           {selectedJob && (
             <div className="jb-detail-col">
-              <JobDetailPanel job={selectedJob} onClose={() => setSelectedJob(null)}/>
+              <JobDetailPanel job={selectedJob} onClose={() => setSelectedJob(null)} onNavigate={onNavigate}/>
             </div>
           )}
         </div>
