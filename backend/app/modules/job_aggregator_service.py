@@ -532,6 +532,58 @@ def _fetch_adzuna(query_tokens: List[str]) -> List[Dict]:
     return jobs
 
 
+def _fetch_remoteok(query_tokens: List[str]) -> List[Dict]:
+    try:
+        with httpx.Client(timeout=10, follow_redirects=True) as client:
+            r = client.get(
+                "https://remoteok.com/api",
+                headers={"User-Agent": "CareerBot/1.0"},
+            )
+            r.raise_for_status()
+        data = r.json()
+    except Exception as exc:
+        logger.debug("RemoteOK failed: %s", exc)
+        return []
+
+    jobs = []
+    for j in data:
+        if not isinstance(j, dict):
+            continue
+        title = j.get("position", "")
+        if not title or not _matches(title, query_tokens):
+            continue
+        url = j.get("url", "")
+        if not url:
+            continue
+        tags = j.get("tags") or []
+        jobs.append({
+            "title":     title,
+            "company":   j.get("company", ""),
+            "location":  "Remote",
+            "salary":    j.get("salary", "") or "",
+            "tags":      tags[:4],
+            "url":       url,
+            "posted_at": j.get("date", ""),
+            "source":    "RemoteOK",
+            "ats":       "remoteok",
+        })
+    return jobs
+
+
+def _to_ts(posted_at: str) -> float:
+    """Convert posted_at string to Unix timestamp for sorting. Missing = 0 (oldest)."""
+    if not posted_at:
+        return 0.0
+    try:
+        raw = str(posted_at).strip()
+        if raw.isdigit():
+            ms = int(raw)
+            return ms / 1000 if ms > 1e11 else float(ms)
+        return datetime.fromisoformat(raw.replace("Z", "+00:00")).timestamp()
+    except Exception:
+        return 0.0
+
+
 def _is_within_days(posted_at: str, days: int = 30) -> bool:
     if not posted_at:
         return True
@@ -546,67 +598,86 @@ def _is_within_days(posted_at: str, days: int = 30) -> bool:
         return True
 
 
+def _fetch_all(query_tokens: List[str]) -> List[Dict]:
+    """Fetch from all sources in parallel and return deduplicated jobs sorted newest-first."""
+    all_jobs: List[Dict] = []
+    max_workers = len(GREENHOUSE_BOARDS) + len(LEVER_BOARDS) + len(ASHBY_BOARDS) + 7
+
+    with ThreadPoolExecutor(max_workers=min(max_workers, 25)) as pool:
+        futures = {}
+        for slug, name in GREENHOUSE_BOARDS.items():
+            futures[pool.submit(_fetch_greenhouse, slug, name, query_tokens)] = slug
+        for slug, name in LEVER_BOARDS.items():
+            futures[pool.submit(_fetch_lever, slug, name, query_tokens)] = f"lever:{slug}"
+        for slug, name in ASHBY_BOARDS.items():
+            futures[pool.submit(_fetch_ashby, slug, name, query_tokens)] = f"ashby:{slug}"
+        futures[pool.submit(_fetch_himalayas, query_tokens)]  = "_himalayas"
+        futures[pool.submit(_fetch_remotive, query_tokens)]   = "_remotive"
+        futures[pool.submit(_fetch_arbeitnow, query_tokens)]  = "_arbeitnow"
+        futures[pool.submit(_fetch_jobicy, query_tokens)]     = "_jobicy"
+        futures[pool.submit(_fetch_adzuna, query_tokens)]     = "_adzuna"
+        futures[pool.submit(_fetch_remoteok, query_tokens)]   = "_remoteok"
+
+        for future in as_completed(futures):
+            try:
+                all_jobs.extend(future.result())
+            except Exception as exc:
+                logger.debug("Worker error: %s", exc)
+
+    # Filter to last 60 days
+    all_jobs = [j for j in all_jobs if _is_within_days(j.get("posted_at", ""), 60)]
+
+    # Deduplicate by url
+    seen: set = set()
+    unique: List[Dict] = []
+    for job in all_jobs:
+        key = job.get("url", "")
+        if key and key not in seen:
+            seen.add(key)
+            unique.append(job)
+
+    # Sort newest first; fall back to relevance for jobs without a date
+    unique.sort(key=lambda j: _to_ts(j.get("posted_at", "")), reverse=True)
+    return unique
+
+
 class JobAggregatorService:
 
     def get_career_jobs(self, query: str, limit: int = 200) -> List[Dict]:
         cache_key = query.strip().lower()
+        now = time.time()
+
         with _CACHE_LOCK:
             cached = _CACHE.get(cache_key)
-        if cached and (time.time() - cached[0]) < _CACHE_TTL:
-            logger.info("Job cache hit for '%s'", query)
-            return cached[1]
+
+        if cached:
+            age = now - cached[0]
+            if age < _CACHE_TTL:
+                logger.info("Job cache hit for '%s'", query)
+                return cached[1][:limit]
+            # Serve stale while refreshing in background
+            threading.Thread(
+                target=self._refresh_cache, args=(cache_key,), daemon=True
+            ).start()
+            logger.info("Job cache stale for '%s', serving stale + background refresh", query)
+            return cached[1][:limit]
 
         query_tokens = [tok.lower() for tok in query.split() if len(tok) > 2]
-
-        all_jobs: List[Dict] = []
-        max_workers = len(GREENHOUSE_BOARDS) + len(LEVER_BOARDS) + len(ASHBY_BOARDS) + 6
-
-        with ThreadPoolExecutor(max_workers=min(max_workers, 12)) as pool:
-            futures = {}
-            for slug, name in GREENHOUSE_BOARDS.items():
-                futures[pool.submit(_fetch_greenhouse, slug, name, query_tokens)] = slug
-            for slug, name in LEVER_BOARDS.items():
-                futures[pool.submit(_fetch_lever, slug, name, query_tokens)] = f"lever:{slug}"
-            for slug, name in ASHBY_BOARDS.items():
-                futures[pool.submit(_fetch_ashby, slug, name, query_tokens)] = f"ashby:{slug}"
-            futures[pool.submit(_fetch_himalayas, query_tokens)]  = "_himalayas"
-            futures[pool.submit(_fetch_remotive, query_tokens)]   = "_remotive"
-            futures[pool.submit(_fetch_arbeitnow, query_tokens)]  = "_arbeitnow"
-            futures[pool.submit(_fetch_jobicy, query_tokens)]     = "_jobicy"
-            futures[pool.submit(_fetch_adzuna, query_tokens)]     = "_adzuna"
-
-            for future in as_completed(futures):
-                try:
-                    all_jobs.extend(future.result())
-                except Exception as exc:
-                    logger.debug("Worker error: %s", exc)
-
-        # Filter to last 60 days
-        all_jobs = [j for j in all_jobs if _is_within_days(j.get("posted_at", ""), 60)]
-
-        # Deduplicate by url
-        seen: set = set()
-        unique: List[Dict] = []
-        for job in all_jobs:
-            key = job.get("url", "")
-            if key and key not in seen:
-                seen.add(key)
-                unique.append(job)
-
-        def score(j: Dict) -> int:
-            t = j["title"].lower()
-            return sum(1 for tok in query_tokens if tok in t)
-
-        unique.sort(key=score, reverse=True)
-        result = unique[:limit]
+        result = _fetch_all(query_tokens)
 
         with _CACHE_LOCK:
             _CACHE[cache_key] = (time.time(), result)
             if len(_CACHE) > _CACHE_MAX:
                 _CACHE.popitem(last=False)
-        logger.info(
-            "Jobs for '%s': %d results (raw %d) — GH:%d Lever:%d Remotive/Himalayas/Arbeitnow included",
-            query, len(result), len(all_jobs),
-            len(GREENHOUSE_BOARDS), len(LEVER_BOARDS),
-        )
-        return result
+
+        logger.info("Jobs for '%s': %d results", query, len(result))
+        return result[:limit]
+
+    def _refresh_cache(self, cache_key: str) -> None:
+        query_tokens = [tok.lower() for tok in cache_key.split() if len(tok) > 2]
+        result = _fetch_all(query_tokens)
+        with _CACHE_LOCK:
+            _CACHE[cache_key] = (time.time(), result)
+            if len(_CACHE) > _CACHE_MAX:
+                _CACHE.popitem(last=False)
+        logger.info("Background refresh done for '%s': %d jobs", cache_key, len(result))

@@ -83,6 +83,7 @@ const SOURCE_COLORS: Record<string, string> = {
   Ashby:      '#0ea5e9',
   Jobicy:     '#10b981',
   Adzuna:     '#f97316',
+  RemoteOK:   '#ec4899',
 };
 
 /* ─── Compact Job Card (list view) ─── */
@@ -334,7 +335,7 @@ const DATE_OPTIONS = [
   { label: 'Past week', value: '7' },
   { label: 'Past month', value: '30' },
 ];
-const SOURCES = ['Greenhouse', 'Lever', 'Ashby', 'Remotive', 'Himalayas', 'Arbeitnow', 'Jobicy', 'Adzuna'];
+const SOURCES = ['Greenhouse', 'Lever', 'Ashby', 'Remotive', 'Himalayas', 'Arbeitnow', 'Jobicy', 'Adzuna', 'RemoteOK'];
 
 function toggleSet(s: Set<string>, val: string): Set<string> {
   const n = new Set(s); n.has(val) ? n.delete(val) : n.add(val); return n;
@@ -633,7 +634,7 @@ export default function JobsPanel({ searchQuery, onNavigate }: JobsPanelProps) {
             {tab === 'live' && (
               <div className="jb-results-bar">
                 <span className="jb-results-count">
-                  <Globe size={12}/> {totalLabel.toLocaleString()} jobs · 8 sources
+                  <Globe size={12}/> {totalLabel.toLocaleString()} jobs · 9 sources
                 </span>
                 <ActiveFilters filters={filters} onChange={setFilters}/>
               </div>
