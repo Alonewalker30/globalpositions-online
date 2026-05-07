@@ -41,8 +41,8 @@ const TIPS = [
 ];
 
 const SKILL_COLORS = [
-  '#6366F1','#8B5CF6','#06B6D4','#10B981','#F59E0B',
-  '#EC4899','#3B82F6','#14B8A6','#F97316','#A855F7',
+  '#16a34a','#15803d','#059669','#10B981','#F59E0B',
+  '#047857','#166534','#14B8A6','#F97316','#065f46',
 ];
 
 function TiltCard({ className, children, onClick }: { className: string; children: React.ReactNode; onClick?: () => void }) {

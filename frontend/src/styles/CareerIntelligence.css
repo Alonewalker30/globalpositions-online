@@ -19,7 +19,7 @@
   width: 52px;
   height: 52px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #16a34a, #15803d);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -91,7 +91,7 @@
 .ci-field input:focus,
 .ci-field select:focus {
   outline: none;
-  border-color: #6366f1;
+  border-color: #16a34a;
   background: #fff;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
@@ -113,7 +113,7 @@
   justify-content: center;
   gap: 10px;
   padding: 14px 24px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #16a34a, #15803d);
   color: white;
   border: none;
   border-radius: 8px;
@@ -236,7 +236,7 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  background: linear-gradient(135deg, #ede9fe, #dbeafe);
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
   border-radius: 10px;
   padding: 14px 18px;
   font-size: 14px;
@@ -247,7 +247,7 @@
 .ci-insight-banner svg {
   flex-shrink: 0;
   margin-top: 2px;
-  color: #6366f1;
+  color: #16a34a;
 }
 
 /* ===== Tabs ===== */
@@ -283,7 +283,7 @@
 
 .ci-tab.active {
   background: #ffffff;
-  color: #6366f1;
+  color: #16a34a;
   font-weight: 600;
   box-shadow: 0 1px 4px rgba(0,0,0,0.1);
 }
@@ -350,7 +350,7 @@
 }
 
 .ci-tag-green { background: #d1fae5; color: #065f46; }
-.ci-tag-blue  { background: #dbeafe; color: #1e40af; }
+.ci-tag-blue  { background: #dcfce7; color: #15803d; }
 .ci-tag-gray  { background: #f3f4f6; color: #374151; }
 
 /* Skills Gap */
@@ -426,7 +426,7 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #16a34a, #15803d);
   color: white;
   font-weight: 700;
   font-size: 15px;
@@ -561,7 +561,7 @@
 
 .ci-job-company {
   font-size: 13px;
-  color: #6366f1;
+  color: #16a34a;
   font-weight: 500;
 }
 
@@ -621,7 +621,7 @@
   align-items: center;
   gap: 6px;
   padding: 6px 14px;
-  background: #6366f1;
+  background: #16a34a;
   color: white;
   border-radius: 6px;
   font-size: 13px;
@@ -705,7 +705,7 @@
 .ci-arxiv  { background: #b31b1b; color: white; }
 .ci-github { background: #24292e; color: white; }
 .ci-course { background: #059669; color: white; }
-.ci-book   { background: #7c3aed; color: white; }
+.ci-book   { background: #15803d; color: white; }
 
 /* ===== Learning Resources ===== */
 .ci-resources-section {
@@ -747,14 +747,14 @@
 }
 
 .ci-repo-card:hover {
-  border-color: #6366f1;
+  border-color: #16a34a;
   box-shadow: 0 2px 8px rgba(99, 102, 241, 0.15);
 }
 
 .ci-repo-name {
   font-size: 13px;
   font-weight: 700;
-  color: #6366f1;
+  color: #16a34a;
 }
 
 .ci-repo-desc {

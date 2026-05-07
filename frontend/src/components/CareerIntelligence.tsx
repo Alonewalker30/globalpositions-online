@@ -70,7 +70,7 @@ const CareerIntelligence: React.FC<CareerIntelligenceProps> = ({
 
   const recommendationColor = (r: string) => {
     if (r === 'strong fit') return '#10b981';
-    if (r === 'good fit') return '#3b82f6';
+    if (r === 'good fit') return '#16a34a';
     if (r === 'stretch role') return '#f59e0b';
     return '#6b7280';
   };

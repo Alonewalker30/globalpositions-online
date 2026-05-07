@@ -88,15 +88,15 @@ function PulsingDot({
         onDoubleClick={(e) => { e.stopPropagation(); onReset(); }}
       >
         <sphereGeometry args={[size * (isSelected ? 1.9 : 1), 10, 10]} />
-        <meshBasicMaterial color={isSelected ? '#F59E0B' : '#6366F1'} />
+        <meshBasicMaterial color={isSelected ? '#F59E0B' : '#16a34a'} />
       </mesh>
       <mesh ref={ringRef}>
         <sphereGeometry args={[size * 2.6, 10, 10]} />
-        <meshBasicMaterial color={isSelected ? '#FCD34D' : '#8B5CF6'} transparent opacity={0.4} />
+        <meshBasicMaterial color={isSelected ? '#FCD34D' : '#15803d'} transparent opacity={0.4} />
       </mesh>
       <Html center position={[0, size * 6, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
         <div style={{
-          background: isSelected ? 'rgba(245,158,11,0.96)' : 'rgba(20,20,45,0.82)',
+          background: isSelected ? 'rgba(245,158,11,0.96)' : 'rgba(10,31,18,0.85)',
           color: '#fff',
           padding: '3px 9px',
           borderRadius: '14px',
@@ -104,7 +104,7 @@ function PulsingDot({
           fontWeight: 700,
           whiteSpace: 'nowrap',
           fontFamily: 'Inter, sans-serif',
-          border: `1px solid ${isSelected ? '#FCD34D55' : 'rgba(99,102,241,0.35)'}`,
+          border: `1px solid ${isSelected ? '#FCD34D55' : 'rgba(22,163,74,0.35)'}`,
           opacity: isSelected ? 1 : 0.75,
           boxShadow: isSelected ? '0 0 16px rgba(245,158,11,0.6)' : 'none',
           transition: 'all 0.3s',
@@ -123,7 +123,7 @@ function Arc({ from, to }: { from: THREE.Vector3; to: THREE.Vector3 }) {
     const curve = new THREE.QuadraticBezierCurve3(from, mid, to);
     const points = curve.getPoints(40);
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    const material = new THREE.LineBasicMaterial({ color: '#6366F1', transparent: true, opacity: 0.22 });
+    const material = new THREE.LineBasicMaterial({ color: '#16a34a', transparent: true, opacity: 0.22 });
     return new THREE.Line(geometry, material);
   }, [from, to]);
   return <primitive object={lineObj} />;
@@ -163,15 +163,15 @@ function GlobeMesh({
       {/* Globe body — double-click anywhere on sphere to reset */}
       <mesh onDoubleClick={(e) => { e.stopPropagation(); onReset(); }}>
         <sphereGeometry args={[1, 64, 64]} />
-        <meshPhongMaterial color="#080818" emissive="#0D0D28" specular="#6366F1" shininess={40} />
+        <meshPhongMaterial color="#061A10" emissive="#0A1F12" specular="#16a34a" shininess={40} />
       </mesh>
       <mesh>
         <sphereGeometry args={[1.002, 36, 18]} />
-        <meshBasicMaterial color="#6366F1" wireframe transparent opacity={0.06} />
+        <meshBasicMaterial color="#16a34a" wireframe transparent opacity={0.06} />
       </mesh>
       <mesh>
         <sphereGeometry args={[1.04, 32, 32]} />
-        <meshBasicMaterial color="#4338CA" transparent opacity={0.04} side={THREE.BackSide} />
+        <meshBasicMaterial color="#14532d" transparent opacity={0.04} side={THREE.BackSide} />
       </mesh>
       {dotData.map((d, i) => (
         <PulsingDot
@@ -215,9 +215,9 @@ export default function Globe3D({ onCitySelect }: Globe3DProps) {
   return (
     <Canvas camera={{ position: [0, 0, 2.8], fov: 42 }} style={{ background: 'transparent' }}>
       <ambientLight intensity={0.2} />
-      <directionalLight position={[4, 2, 4]}   intensity={1.2} color="#6366F1" />
-      <directionalLight position={[-4, -2, -2]} intensity={0.4} color="#8B5CF6" />
-      <pointLight position={[0, 3, 0]} intensity={0.5} color="#06B6D4" distance={6} />
+      <directionalLight position={[4, 2, 4]}   intensity={1.2} color="#16a34a" />
+      <directionalLight position={[-4, -2, -2]} intensity={0.4} color="#15803d" />
+      <pointLight position={[0, 3, 0]} intensity={0.5} color="#4ade80" distance={6} />
       <Stars radius={120} depth={60} count={4000} factor={3} saturation={0} fade speed={0.5} />
       <CameraController targetPos={selectedCityPos} />
       <GlobeMesh

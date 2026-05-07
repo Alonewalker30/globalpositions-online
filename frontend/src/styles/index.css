@@ -20,10 +20,10 @@
   --accent-hover: #15803d;
   --accent-dim:   rgba(22,163,74,.10);
   --accent-glow:  rgba(22,163,74,.20);
-  --violet:       #8B5CF6;
-  --violet-dim:   rgba(139,92,246,.10);
-  --cyan:         #06B6D4;
-  --cyan-dim:     rgba(6,182,212,.10);
+  --violet:       #15803d;
+  --violet-dim:   rgba(22,163,74,.08);
+  --cyan:         #16a34a;
+  --cyan-dim:     rgba(22,163,74,.08);
 
   /* ── Text ── */
   --text-1:       #111827;
@@ -39,7 +39,7 @@
   --red-dim:      rgba(239,68,68,.10);
 
   /* ── Legacy aliases updated for green theme ── */
-  --navy:         #14532d;
+  --navy:         #111827;
   --blue:         #16a34a;
   --blue-hover:   #15803d;
   --blue-light:   rgba(22,163,74,.10);
@@ -54,8 +54,8 @@
   --green-light:  rgba(22,163,74,.10);
   --yellow-light: rgba(245,158,11,.10);
   --red-light:    rgba(239,68,68,.10);
-  --purple:       #8B5CF6;
-  --purple-light: rgba(139,92,246,.10);
+  --purple:       #15803d;
+  --purple-light: rgba(21,128,61,.10);
 
   /* ── Layout ── */
   --sidebar-w:    240px;

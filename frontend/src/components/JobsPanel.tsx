@@ -19,7 +19,7 @@ const BOOKMARKS_KEY = 'saved_jobs';
 export const getSavedJobs = (): Job[] => { try { return JSON.parse(localStorage.getItem(BOOKMARKS_KEY) || '[]'); } catch { return []; } };
 const persistSavedJobs = (jobs: Job[]) => localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(jobs));
 
-const LOGO_COLORS = ['#2563EB','#7C3AED','#059669','#DC2626','#D97706','#0891B2','#BE185D','#0F766E'];
+const LOGO_COLORS = ['#16a34a','#15803d','#059669','#DC2626','#D97706','#0F766E','#047857','#166534'];
 const logoColor = (n: string) => LOGO_COLORS[(n.charCodeAt(0) || 0) % LOGO_COLORS.length];
 
 function CompanyLogo({ company, directLogoUrl, size = 40 }: { company: string; directLogoUrl?: string; size?: number }) {
@@ -75,14 +75,14 @@ function formatAgo(days: number | null): string {
 }
 
 const SOURCE_COLORS: Record<string, string> = {
-  Greenhouse: '#3dba6e',
-  Lever:      '#3a86ff',
-  Remotive:   '#8b5cf6',
+  Greenhouse: '#16a34a',
+  Lever:      '#15803d',
+  Remotive:   '#059669',
   Himalayas:  '#f59e0b',
-  Ashby:      '#0ea5e9',
+  Ashby:      '#047857',
   Jobicy:     '#10b981',
   Adzuna:     '#f97316',
-  RemoteOK:   '#ec4899',
+  RemoteOK:   '#166534',
 };
 
 /* ─── Compact Job Card (list view) ─── */
