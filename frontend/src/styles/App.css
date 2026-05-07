@@ -1625,6 +1625,14 @@
 .jb-quick-chip:hover, .jb-quick-chip.active {
   background: var(--accent); color: #fff; border-color: var(--accent);
 }
+/* Contract type chips (C2C / 1099) */
+.jb-quick-chip.contract-chip {
+  background: #fff7ed; color: #b45309; border-color: #fed7aa;
+}
+.jb-quick-chip.contract-chip:hover, .jb-quick-chip.contract-chip.active {
+  background: #f97316; color: #fff; border-color: #f97316;
+}
+
 /* Browser source chips */
 .jb-browser-sources { display: flex; align-items: center; gap: 6px; }
 .jb-browser-chip {

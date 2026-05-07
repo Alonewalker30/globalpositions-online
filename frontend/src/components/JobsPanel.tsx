@@ -327,7 +327,7 @@ interface Filters {
 
 const WORK_TYPES   = ['Remote', 'Hybrid', 'On-site'];
 const EXP_LEVELS   = ['Internship', 'Entry', 'Mid', 'Senior', 'Staff', 'Principal', 'Manager+'];
-const JOB_TYPES    = ['Full-time', 'Contract', 'Part-time', 'Internship'];
+const JOB_TYPES    = ['Full-time', 'Contract', 'C2C', '1099', 'Part-time', 'Internship'];
 const DATE_OPTIONS = [
   { label: 'Any time', value: 'any' },
   { label: 'Past 24 hours', value: '1' },
@@ -387,7 +387,11 @@ function FilterSidebar({ filters, onChange, activeCount }: {
         {JOB_TYPES.map(t => (
           <label key={t} className="jb-filter-option">
             <input type="checkbox" checked={filters.jobType.has(t)} onChange={() => set({ jobType: toggleSet(filters.jobType, t) })}/>
-            <span>{t}</span>
+            <span>
+              {t}
+              {t === 'C2C' && <span style={{ fontSize: 10, color: 'var(--text-3)', marginLeft: 4 }}>Corp-to-Corp</span>}
+              {t === '1099' && <span style={{ fontSize: 10, color: 'var(--text-3)', marginLeft: 4 }}>Independent</span>}
+            </span>
           </label>
         ))}
       </FilterSection>
@@ -507,6 +511,8 @@ export default function JobsPanel({ searchQuery, onNavigate }: JobsPanelProps) {
       if (filters.expLevel.size && !filters.expLevel.has(inferExpLevel(j.title))) return false;
       if (filters.source.size && !filters.source.has(j.source || '')) return false;
       if (filters.jobType.has('Contract') && !`${j.title} ${j.tags?.join(' ')}`.toLowerCase().includes('contract')) return false;
+      if (filters.jobType.has('C2C') && !`${j.title} ${j.tags?.join(' ')}`.toLowerCase().match(/c2c|corp.to.corp|corp2corp/)) return false;
+      if (filters.jobType.has('1099') && !`${j.title} ${j.tags?.join(' ')}`.includes('1099')) return false;
       if (filters.jobType.has('Internship') && !j.title.toLowerCase().includes('intern')) return false;
       if (filters.datePosted !== 'any') {
         const d = daysAgo(j.posted_at);
@@ -545,7 +551,8 @@ export default function JobsPanel({ searchQuery, onNavigate }: JobsPanelProps) {
   const hasMore      = tab === 'live' && visibleCount < filtered.length;
   const totalLabel   = tab === 'live' ? filtered.length : savedJobs.length;
 
-  const QUICK_CHIPS = ['Remote', 'Senior', 'Entry', 'Contract', 'AI / ML', 'Frontend', 'Backend', 'Data'];
+  const QUICK_CHIPS   = ['Remote', 'Senior', 'Entry', 'Contract', 'AI / ML', 'Frontend', 'Backend', 'Data'];
+  const CONTRACT_CHIPS = ['C2C', '1099'];
 
   return (
     <div className="jb-shell">
@@ -586,6 +593,17 @@ export default function JobsPanel({ searchQuery, onNavigate }: JobsPanelProps) {
             return (
               <button key={chip} className={`jb-quick-chip ${active ? 'active' : ''}`}
                 onClick={() => { const q = active ? 'software engineer' : chip; setQuery(q); fetch_(q); }}>
+                {chip}
+              </button>
+            );
+          })}
+          {/* Contract type chips — toggle jobType filter, not search query */}
+          {CONTRACT_CHIPS.map(chip => {
+            const active = filters.jobType.has(chip);
+            return (
+              <button key={chip} className={`jb-quick-chip contract-chip ${active ? 'active' : ''}`}
+                title={chip === 'C2C' ? 'Corp-to-Corp contract roles' : '1099 independent contractor roles'}
+                onClick={() => setFilters(f => ({ ...f, jobType: toggleSet(f.jobType, chip) }))}>
                 {chip}
               </button>
             );
