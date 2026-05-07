@@ -175,8 +175,17 @@ _TECH_ROLES = {
 
 _CACHE: OrderedDict = OrderedDict()
 _CACHE_LOCK = threading.Lock()
-_CACHE_TTL = 300
+_CACHE_TTL = 600   # 10 min — fewer refreshes
 _CACHE_MAX = 10
+_REFRESH_SEM = threading.Semaphore(1)  # only 1 background refresh at a time
+
+# One shared client; limits total open connections to avoid memory spikes
+_HTTP = httpx.Client(
+    timeout=httpx.Timeout(9.0),
+    follow_redirects=True,
+    limits=httpx.Limits(max_connections=12, max_keepalive_connections=4, keepalive_expiry=20),
+    headers={"User-Agent": "CareerBot/1.0"},
+)
 
 
 def _matches(title: str, query_tokens: List[str]) -> bool:
@@ -188,12 +197,8 @@ def _matches(title: str, query_tokens: List[str]) -> bool:
 
 def _fetch_greenhouse(slug: str, name: str, query_tokens: List[str]) -> List[Dict]:
     try:
-        with httpx.Client(timeout=10) as client:
-            r = client.get(
-                f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs",
-                headers={"User-Agent": "CareerBot/1.0"},
-            )
-            r.raise_for_status()
+        r = _HTTP.get(f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs")
+        r.raise_for_status()
         data = r.json()
     except Exception as exc:
         logger.debug("Greenhouse %s failed: %s", slug, exc)
@@ -227,12 +232,8 @@ def _fetch_greenhouse(slug: str, name: str, query_tokens: List[str]) -> List[Dic
 
 def _fetch_lever(slug: str, name: str, query_tokens: List[str]) -> List[Dict]:
     try:
-        with httpx.Client(timeout=10) as client:
-            r = client.get(
-                f"https://api.lever.co/v0/postings/{slug}?mode=json",
-                headers={"User-Agent": "CareerBot/1.0"},
-            )
-            r.raise_for_status()
+        r = _HTTP.get(f"https://api.lever.co/v0/postings/{slug}?mode=json")
+        r.raise_for_status()
         data = r.json()
     except Exception as exc:
         logger.debug("Lever %s failed: %s", slug, exc)
@@ -268,13 +269,9 @@ def _fetch_lever(slug: str, name: str, query_tokens: List[str]) -> List[Dict]:
 def _fetch_remotive(query_tokens: List[str]) -> List[Dict]:
     query_str = " ".join(query_tokens) or "software engineer"
     try:
-        with httpx.Client(timeout=15) as client:
-            r = client.get(
-                "https://remotive.com/api/remote-jobs",
-                params={"search": query_str, "limit": 100, "location": "usa"},
-                headers={"User-Agent": "CareerBot/1.0"},
-            )
-            r.raise_for_status()
+        r = _HTTP.get("https://remotive.com/api/remote-jobs",
+                      params={"search": query_str, "limit": 50, "location": "usa"})
+        r.raise_for_status()
         data = r.json()
     except Exception as exc:
         logger.debug("Remotive failed: %s", exc)
@@ -335,13 +332,9 @@ def _is_usa_or_remote(location: str) -> bool:
 def _fetch_himalayas(query_tokens: List[str]) -> List[Dict]:
     query_str = " ".join(query_tokens) or "software engineer"
     try:
-        with httpx.Client(timeout=15) as client:
-            r = client.get(
-                "https://himalayas.app/jobs/api",
-                params={"q": query_str, "limit": 50},
-                headers={"User-Agent": "CareerBot/1.0"},
-            )
-            r.raise_for_status()
+        r = _HTTP.get("https://himalayas.app/jobs/api",
+                      params={"q": query_str, "limit": 30})
+        r.raise_for_status()
         data = r.json()
     except Exception as exc:
         logger.debug("Himalayas failed: %s", exc)
@@ -385,12 +378,8 @@ def _fetch_himalayas(query_tokens: List[str]) -> List[Dict]:
 
 def _fetch_ashby(slug: str, name: str, query_tokens: List[str]) -> List[Dict]:
     try:
-        with httpx.Client(timeout=10) as client:
-            r = client.get(
-                f"https://api.ashbyhq.com/posting-api/job-board/{slug}",
-                headers={"User-Agent": "CareerBot/1.0"},
-            )
-            r.raise_for_status()
+        r = _HTTP.get(f"https://api.ashbyhq.com/posting-api/job-board/{slug}")
+        r.raise_for_status()
         data = r.json()
     except Exception as exc:
         logger.debug("Ashby %s failed: %s", slug, exc)
@@ -424,13 +413,9 @@ def _fetch_ashby(slug: str, name: str, query_tokens: List[str]) -> List[Dict]:
 def _fetch_jobicy(query_tokens: List[str]) -> List[Dict]:
     tag = " ".join(query_tokens[:2]) if query_tokens else "software engineer"
     try:
-        with httpx.Client(timeout=15) as client:
-            r = client.get(
-                "https://jobicy.com/api/v2/remote-jobs",
-                params={"count": 50, "tag": tag, "geo": "usa"},
-                headers={"User-Agent": "CareerBot/1.0"},
-            )
-            r.raise_for_status()
+        r = _HTTP.get("https://jobicy.com/api/v2/remote-jobs",
+                      params={"count": 30, "tag": tag, "geo": "usa"})
+        r.raise_for_status()
         data = r.json()
     except Exception as exc:
         logger.debug("Jobicy failed: %s", exc)
@@ -466,20 +451,11 @@ def _fetch_adzuna(query_tokens: List[str]) -> List[Dict]:
         return []
     query_str = " ".join(query_tokens) or "software engineer"
     try:
-        with httpx.Client(timeout=15) as client:
-            r = client.get(
-                "https://api.adzuna.com/v1/api/jobs/us/search/1",
-                params={
-                    "app_id":           app_id,
-                    "app_key":          api_key,
-                    "results_per_page": 50,
-                    "what":             query_str,
-                    "sort_by":          "date",
-                    "content-type":     "application/json",
-                },
-                headers={"User-Agent": "CareerBot/1.0"},
-            )
-            r.raise_for_status()
+        r = _HTTP.get("https://api.adzuna.com/v1/api/jobs/us/search/1",
+                      params={"app_id": app_id, "app_key": api_key,
+                              "results_per_page": 30, "what": query_str,
+                              "sort_by": "date", "content-type": "application/json"})
+        r.raise_for_status()
         data = r.json()
     except Exception as exc:
         logger.debug("Adzuna failed: %s", exc)
@@ -515,12 +491,8 @@ def _fetch_adzuna(query_tokens: List[str]) -> List[Dict]:
 
 def _fetch_remoteok(query_tokens: List[str]) -> List[Dict]:
     try:
-        with httpx.Client(timeout=10, follow_redirects=True) as client:
-            r = client.get(
-                "https://remoteok.com/api",
-                headers={"User-Agent": "CareerBot/1.0"},
-            )
-            r.raise_for_status()
+        r = _HTTP.get("https://remoteok.com/api")
+        r.raise_for_status()
         data = r.json()
     except Exception as exc:
         logger.debug("RemoteOK failed: %s", exc)
@@ -584,7 +556,7 @@ def _fetch_all(query_tokens: List[str]) -> List[Dict]:
     all_jobs: List[Dict] = []
     max_workers = len(GREENHOUSE_BOARDS) + len(LEVER_BOARDS) + len(ASHBY_BOARDS) + 6
 
-    with ThreadPoolExecutor(max_workers=min(max_workers, 25)) as pool:
+    with ThreadPoolExecutor(max_workers=min(max_workers, 8)) as pool:
         futures = {}
         for slug, name in GREENHOUSE_BOARDS.items():
             futures[pool.submit(_fetch_greenhouse, slug, name, query_tokens)] = slug
@@ -661,10 +633,15 @@ class JobAggregatorService:
         return result[:limit]
 
     def _refresh_cache(self, cache_key: str) -> None:
-        query_tokens = [tok.lower() for tok in cache_key.split() if len(tok) > 2]
-        result = _fetch_all(query_tokens)
-        with _CACHE_LOCK:
-            _CACHE[cache_key] = (time.time(), result)
-            if len(_CACHE) > _CACHE_MAX:
-                _CACHE.popitem(last=False)
-        logger.info("Background refresh done for '%s': %d jobs", cache_key, len(result))
+        if not _REFRESH_SEM.acquire(blocking=False):
+            return  # another refresh already running, skip
+        try:
+            query_tokens = [tok.lower() for tok in cache_key.split() if len(tok) > 2]
+            result = _fetch_all(query_tokens)
+            with _CACHE_LOCK:
+                _CACHE[cache_key] = (time.time(), result)
+                if len(_CACHE) > _CACHE_MAX:
+                    _CACHE.popitem(last=False)
+            logger.info("Background refresh done for '%s': %d jobs", cache_key, len(result))
+        finally:
+            _REFRESH_SEM.release()

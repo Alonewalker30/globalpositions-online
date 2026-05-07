@@ -11,4 +11,3 @@ pypdf==3.17.1
 requests==2.31.0
 httpx==0.25.2
 slowapi==0.1.9
-playwright>=1.40.0
