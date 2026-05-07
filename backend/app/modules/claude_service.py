@@ -10,8 +10,8 @@ Anthropic  (last resort):     https://console.anthropic.com
 
 Model tiers (user-selectable):
   fast     → Cerebras 8B / Gemini Flash / Groq 8B  — instant, structured tasks
-  balanced → Cerebras 70B / Gemini Flash / Groq 70B — default, good quality (default)
-  quality  → best available                          — heavy reasoning, rewrites
+  balanced → Groq 70B / Gemini Flash / Together     — default, good quality (default)
+  quality  → Groq 70B → Gemini → Together           — heavy reasoning, rewrites
 """
 import json
 import logging
@@ -20,12 +20,11 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 # Model names
-_CEREBRAS_FAST_MODEL = "llama3.1-8b"
-_CEREBRAS_MODEL      = "llama3.1-70b"   # confirmed available; 3.3-70b not yet on all tiers
+_CEREBRAS_FAST_MODEL = "llama3.1-8b"          # free tier: 8B only
 _GEMINI_FAST_MODEL   = "gemini-2.0-flash"
 _GEMINI_MODEL        = "gemini-2.0-flash"
 _GROQ_FAST_MODEL     = "llama-3.1-8b-instant"
-_GROQ_MODEL          = "deepseek-r1-distill-llama-70b"
+_GROQ_MODEL          = "llama-3.3-70b-versatile"  # replaces decommissioned deepseek-r1
 _TOGETHER_MODEL      = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
 _ANTHROPIC_MODEL     = "claude-3-5-sonnet-20241022"
 
@@ -46,7 +45,7 @@ def _build_client():
 
     if cerebras_key:
         from openai import OpenAI
-        logger.info("AI backend: Cerebras (%s)", _CEREBRAS_MODEL)
+        logger.info("AI backend: Cerebras (%s)", _CEREBRAS_FAST_MODEL)
         return OpenAI(api_key=cerebras_key, base_url=_CEREBRAS_BASE_URL), "cerebras"
 
     gemini_key = (settings.gemini_api_key or "").strip()
@@ -87,7 +86,7 @@ class ClaudeService:
         self.client, self.mode = _build_client()
 
         if self.mode == "cerebras":
-            self.model = _CEREBRAS_MODEL
+            self.model = _CEREBRAS_FAST_MODEL
         elif self.mode == "gemini":
             self.model = _GEMINI_MODEL
         elif self.mode == "nvidia":
@@ -144,8 +143,6 @@ class ClaudeService:
                 return self._together_client, _TOGETHER_MODEL
             return self.client, self.model
         if tier == "quality":
-            if self._cerebras_client:
-                return self._cerebras_client, _CEREBRAS_MODEL
             if self._gemini_client:
                 return self._gemini_client, _GEMINI_MODEL
             if self._groq_client:
@@ -154,8 +151,6 @@ class ClaudeService:
                 return self._together_client, _TOGETHER_MODEL
             return self.client, self.model
         # balanced (default)
-        if self._cerebras_client:
-            return self._cerebras_client, _CEREBRAS_MODEL
         if self._gemini_client:
             return self._gemini_client, _GEMINI_MODEL
         if self._groq_client:
@@ -247,8 +242,7 @@ class ClaudeService:
         return self._chat(prompt, max_tokens)
 
     def _quality_chat(self, prompt: str, max_tokens: int = 3000, system: str = "") -> str:
-        """Groq DeepSeek R1 → Cerebras 70B → Gemini → Together → main client.
-        Groq is tried first for quality tasks: DeepSeek R1 is more capable for rewrites."""
+        """Groq 70B → Gemini → Together → main client."""
         if self._groq_client:
             try:
                 msgs = []
@@ -261,21 +255,7 @@ class ClaudeService:
                 logger.info("quality_chat: Groq (%s)", _GROQ_MODEL)
                 return (r.choices[0].message.content or "").strip()
             except Exception as exc:
-                logger.warning("quality_chat: Groq failed (%s), trying Cerebras", exc)
-
-        if self._cerebras_client:
-            try:
-                msgs = []
-                if system:
-                    msgs.append({"role": "system", "content": system})
-                msgs.append({"role": "user", "content": prompt})
-                r = self._cerebras_client.chat.completions.create(
-                    model=_CEREBRAS_MODEL, max_tokens=max_tokens, messages=msgs, timeout=60,
-                )
-                logger.info("quality_chat: Cerebras (%s)", _CEREBRAS_MODEL)
-                return (r.choices[0].message.content or "").strip()
-            except Exception as exc:
-                logger.warning("quality_chat: Cerebras failed (%s), trying Gemini", exc)
+                logger.warning("quality_chat: Groq failed (%s), trying Gemini", exc)
 
         if self._gemini_client:
             try:
