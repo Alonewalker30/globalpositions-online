@@ -8,6 +8,7 @@ import logging
 import threading
 import time
 import re
+import xml.etree.ElementTree as ET
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
@@ -523,6 +524,148 @@ def _fetch_remoteok(query_tokens: List[str]) -> List[Dict]:
     return jobs
 
 
+_EMAIL_RE = re.compile(r'[\w.+-]+@[\w-]+\.[\w.]{2,}')
+_PHONE_RE = re.compile(r'(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s][0-9]{3}[-.\s][0-9]{4}')
+
+def _extract_contact(html: str) -> Dict:
+    """Pull first email and phone number found in raw HTML or plain text."""
+    text = re.sub(r'<[^>]+>', ' ', html or '')
+    emails = _EMAIL_RE.findall(text)
+    phones = _PHONE_RE.findall(text)
+    # Exclude common non-recruiter emails (noreply, support, info)
+    skip = {'noreply', 'support', 'info', 'hello', 'contact', 'admin', 'no-reply'}
+    email = next((e for e in emails if e.split('@')[0].lower() not in skip), '')
+    return {
+        'contact_email': email,
+        'contact_phone': phones[0].strip() if phones else '',
+    }
+
+
+def _fetch_remotive_contract(query_tokens: List[str]) -> List[Dict]:
+    """Remotive contract-only feed — includes description for contact extraction."""
+    query_str = " ".join(query_tokens) or "software engineer"
+    try:
+        r = _HTTP.get("https://remotive.com/api/remote-jobs",
+                      params={"search": query_str, "limit": 50, "job_type": "contract"})
+        r.raise_for_status()
+        data = r.json()
+    except Exception as exc:
+        logger.debug("Remotive contract failed: %s", exc)
+        return []
+
+    jobs = []
+    for j in data.get("jobs", []):
+        url = j.get("url", "")
+        if not url:
+            continue
+        contact = _extract_contact(j.get("description", ""))
+        category = j.get("category", "")
+        tags = j.get("tags", []) or []
+        all_tags = list({t for t in ([category] + tags + ["contract"]) if t})[:5]
+        jobs.append({
+            "title":         j.get("title", ""),
+            "company":       j.get("company_name", ""),
+            "location":      j.get("candidate_required_location", "Remote") or "Remote",
+            "salary":        j.get("salary", "") or "",
+            "tags":          all_tags,
+            "url":           url,
+            "posted_at":     j.get("publication_date", ""),
+            "source":        "Remotive",
+            "ats":           "remotive",
+            "company_logo":  j.get("company_logo", ""),
+            **contact,
+        })
+    return jobs
+
+
+def _fetch_weworkremotely_contract(query_tokens: List[str]) -> List[Dict]:
+    """We Work Remotely — contract jobs RSS feed (free, no key)."""
+    try:
+        r = _HTTP.get("https://weworkremotely.com/categories/remote-contract-jobs.rss",
+                      headers={"Accept": "application/rss+xml, application/xml, text/xml"})
+        r.raise_for_status()
+        root = ET.fromstring(r.content)
+    except Exception as exc:
+        logger.debug("WeWorkRemotely failed: %s", exc)
+        return []
+
+    jobs = []
+    channel = root.find("channel")
+    if channel is None:
+        return []
+
+    for item in channel.findall("item"):
+        raw_title = (item.findtext("title") or "").strip()
+        # WWR title format: "CompanyName: Job Title"
+        if ": " in raw_title:
+            company, title = raw_title.split(": ", 1)
+        else:
+            title, company = raw_title, ""
+
+        if query_tokens and not _matches(title, query_tokens):
+            continue
+
+        # <link> in RSS 2.0 is tricky — try guid first, then link text
+        url = item.findtext("guid") or item.findtext("link") or ""
+        if not url:
+            continue
+
+        desc_html = item.findtext("description") or ""
+        contact = _extract_contact(desc_html)
+        posted_at = item.findtext("pubDate") or ""
+
+        jobs.append({
+            "title":         title.strip(),
+            "company":       company.strip(),
+            "location":      "Remote",
+            "salary":        "",
+            "tags":          ["contract", "remote"],
+            "url":           url.strip(),
+            "posted_at":     posted_at,
+            "source":        "WeWorkRemotely",
+            "ats":           "weworkremotely",
+            **contact,
+        })
+    return jobs
+
+
+def _fetch_jobicy_contract(query_tokens: List[str]) -> List[Dict]:
+    """Jobicy contract-type jobs (USA)."""
+    tag = " ".join(query_tokens[:2]) if query_tokens else "software engineer"
+    try:
+        r = _HTTP.get("https://jobicy.com/api/v2/remote-jobs",
+                      params={"count": 30, "tag": tag, "geo": "usa", "jobType": "contract"})
+        r.raise_for_status()
+        data = r.json()
+    except Exception as exc:
+        logger.debug("Jobicy contract failed: %s", exc)
+        return []
+
+    jobs = []
+    for j in data.get("jobs", []):
+        url = j.get("url", "")
+        if not url:
+            continue
+        industries = j.get("jobIndustry") or []
+        job_types  = j.get("jobType") or []
+        tags = list({t for t in (industries + job_types + ["contract"]) if t})[:5]
+        # Try to extract contact from jobExcerpt if available
+        contact = _extract_contact(j.get("jobExcerpt", "") or "")
+        jobs.append({
+            "title":         j.get("jobTitle", ""),
+            "company":       j.get("companyName", ""),
+            "location":      j.get("jobGeo", "Remote") or "Remote",
+            "salary":        j.get("annualSalaryMin", "") and f"${j['annualSalaryMin']:,}+" or "",
+            "tags":          tags,
+            "url":           url,
+            "posted_at":     j.get("pubDate", ""),
+            "source":        "Jobicy",
+            "ats":           "jobicy",
+            **contact,
+        })
+    return jobs
+
+
 def _to_ts(posted_at: str) -> float:
     """Convert posted_at string to Unix timestamp for sorting. Missing = 0 (oldest)."""
     if not posted_at:
@@ -564,11 +707,14 @@ def _fetch_all(query_tokens: List[str]) -> List[Dict]:
             futures[pool.submit(_fetch_lever, slug, name, query_tokens)] = f"lever:{slug}"
         for slug, name in ASHBY_BOARDS.items():
             futures[pool.submit(_fetch_ashby, slug, name, query_tokens)] = f"ashby:{slug}"
-        futures[pool.submit(_fetch_himalayas, query_tokens)]  = "_himalayas"
-        futures[pool.submit(_fetch_remotive, query_tokens)]   = "_remotive"
-        futures[pool.submit(_fetch_jobicy, query_tokens)]     = "_jobicy"
-        futures[pool.submit(_fetch_adzuna, query_tokens)]     = "_adzuna"
-        futures[pool.submit(_fetch_remoteok, query_tokens)]   = "_remoteok"
+        futures[pool.submit(_fetch_himalayas, query_tokens)]            = "_himalayas"
+        futures[pool.submit(_fetch_remotive, query_tokens)]             = "_remotive"
+        futures[pool.submit(_fetch_remotive_contract, query_tokens)]    = "_remotive_contract"
+        futures[pool.submit(_fetch_jobicy, query_tokens)]               = "_jobicy"
+        futures[pool.submit(_fetch_jobicy_contract, query_tokens)]      = "_jobicy_contract"
+        futures[pool.submit(_fetch_weworkremotely_contract, query_tokens)] = "_weworkremotely"
+        futures[pool.submit(_fetch_adzuna, query_tokens)]               = "_adzuna"
+        futures[pool.submit(_fetch_remoteok, query_tokens)]             = "_remoteok"
 
         for future in as_completed(futures):
             try:
@@ -577,7 +723,7 @@ def _fetch_all(query_tokens: List[str]) -> List[Dict]:
                 logger.debug("Worker error: %s", exc)
 
     # Keep USA, remote, and worldwide jobs only; ATS board jobs always pass through
-    ats_sources = {"Greenhouse", "Lever", "Ashby"}
+    ats_sources = {"Greenhouse", "Lever", "Ashby", "WeWorkRemotely"}
     all_jobs = [
         j for j in all_jobs
         if j.get("source") in ats_sources or _is_usa_or_remote(j.get("location", ""))

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Search, ExternalLink, Loader, Briefcase, Bookmark, BookmarkCheck,
   Building2, MapPin, X, SlidersHorizontal, ChevronDown, DollarSign,
-  Clock, Globe, ArrowUpDown, Zap, Brain, RefreshCw,
+  Clock, Globe, ArrowUpDown, Zap, Brain, RefreshCw, Mail, Phone,
 } from 'lucide-react';
 import { getCareerPageJobs, scrapeJobsBrowser, getApplyFields, researchCompanyBrowser, type BrowserJobSource } from '../services/api';
 import { toast } from './Toast';
@@ -11,6 +11,7 @@ interface Job {
   title: string; company: string; location: string; salary: string;
   tags: string[]; url: string; posted_at: string; source?: string;
   ats?: string; match_score?: number; company_logo?: string;
+  contact_email?: string; contact_phone?: string;
 }
 
 interface JobsPanelProps { searchQuery: string; onNavigate?: (page: string) => void; }
@@ -75,14 +76,15 @@ function formatAgo(days: number | null): string {
 }
 
 const SOURCE_COLORS: Record<string, string> = {
-  Greenhouse: '#16a34a',
-  Lever:      '#15803d',
-  Remotive:   '#059669',
-  Himalayas:  '#f59e0b',
-  Ashby:      '#047857',
-  Jobicy:     '#10b981',
-  Adzuna:     '#f97316',
-  RemoteOK:   '#166534',
+  Greenhouse:     '#16a34a',
+  Lever:          '#15803d',
+  Remotive:       '#059669',
+  Himalayas:      '#f59e0b',
+  Ashby:          '#047857',
+  Jobicy:         '#10b981',
+  Adzuna:         '#f97316',
+  RemoteOK:       '#166534',
+  WeWorkRemotely: '#b45309',
 };
 
 /* ─── Compact Job Card (list view) ─── */
@@ -237,6 +239,25 @@ function JobDetailPanel({ job, onClose, onNavigate }: { job: Job; onClose: () =>
             <div className="jb-detail-tags">
               {job.tags.filter(Boolean).map((t, i) => <span key={i} className="tag">{t}</span>)}
             </div>
+          </div>
+        )}
+
+        {(job.contact_email || job.contact_phone) && (
+          <div className="jb-detail-section jb-contact-section">
+            <div className="jb-detail-section-title">Contact Recruiter</div>
+            <div className="jb-contact-row">
+              {job.contact_email && (
+                <a href={`mailto:${job.contact_email}`} className="jb-contact-item jb-contact-email">
+                  <Mail size={13}/> {job.contact_email}
+                </a>
+              )}
+              {job.contact_phone && (
+                <a href={`tel:${job.contact_phone.replace(/\D/g, '')}`} className="jb-contact-item jb-contact-phone">
+                  <Phone size={13}/> {job.contact_phone}
+                </a>
+              )}
+            </div>
+            <p className="jb-detail-note" style={{ marginTop: 6 }}>Contact info extracted from the job posting. Reach out directly for C2C / 1099 inquiries.</p>
           </div>
         )}
 

@@ -1773,6 +1773,19 @@
 .jb-detail-desc { font-size: 13px; color: var(--text-1); line-height: 1.6; }
 .jb-detail-note { font-size: 12px; color: var(--text-2); line-height: 1.6; }
 
+/* Contact recruiter section */
+.jb-contact-section { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 12px 14px; }
+.jb-contact-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.jb-contact-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600; border-radius: 8px;
+  padding: 6px 12px; text-decoration: none; transition: all .15s;
+}
+.jb-contact-email { background: #fff; color: #15803d; border: 1px solid #bbf7d0; }
+.jb-contact-email:hover { background: #16a34a; color: #fff; border-color: #16a34a; }
+.jb-contact-phone { background: #fff; color: #b45309; border: 1px solid #fed7aa; }
+.jb-contact-phone:hover { background: #f97316; color: #fff; border-color: #f97316; }
+
 /* ── Load more sentinel ── */
 .jb-load-more-sentinel { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px; font-size: 12px; color: var(--text-3); }
 
