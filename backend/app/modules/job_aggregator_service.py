@@ -184,7 +184,7 @@ _REFRESH_SEM = threading.Semaphore(1)  # only 1 background refresh at a time
 _HTTP = httpx.Client(
     timeout=httpx.Timeout(9.0),
     follow_redirects=True,
-    limits=httpx.Limits(max_connections=12, max_keepalive_connections=4, keepalive_expiry=20),
+    limits=httpx.Limits(max_connections=25, max_keepalive_connections=8, keepalive_expiry=20),
     headers={"User-Agent": "CareerBot/1.0"},
 )
 
@@ -799,26 +799,31 @@ def _is_within_days(posted_at: str, days: int = 30) -> bool:
 def _fetch_all(query_tokens: List[str]) -> List[Dict]:
     """Fetch from all sources in parallel and return deduplicated jobs sorted newest-first."""
     all_jobs: List[Dict] = []
-    max_workers = len(GREENHOUSE_BOARDS) + len(LEVER_BOARDS) + len(ASHBY_BOARDS) + 8
+    n_ats = len(GREENHOUSE_BOARDS) + len(LEVER_BOARDS) + len(ASHBY_BOARDS)
+    # Use enough workers that lightweight API sources aren't starved behind ATS board tasks.
+    # HTTP client max_connections=25 caps actual concurrent network calls regardless.
+    max_workers = min(n_ats + 13, 50)
 
-    with ThreadPoolExecutor(max_workers=min(max_workers, 8)) as pool:
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {}
+        # Submit lightweight single-call sources FIRST so they get worker slots immediately
+        futures[pool.submit(_fetch_himalayas, query_tokens)]               = "_himalayas"
+        futures[pool.submit(_fetch_remotive, query_tokens)]                = "_remotive"
+        futures[pool.submit(_fetch_remotive_contract, query_tokens)]       = "_remotive_contract"
+        futures[pool.submit(_fetch_jobicy, query_tokens)]                  = "_jobicy"
+        futures[pool.submit(_fetch_jobicy_contract, query_tokens)]         = "_jobicy_contract"
+        futures[pool.submit(_fetch_weworkremotely_contract, query_tokens)] = "_weworkremotely"
+        futures[pool.submit(_fetch_adzuna, query_tokens)]                  = "_adzuna"
+        futures[pool.submit(_fetch_remoteok, query_tokens)]                = "_remoteok"
+        futures[pool.submit(_fetch_arbeitnow, query_tokens)]               = "_arbeitnow"
+        futures[pool.submit(_fetch_usajobs, query_tokens)]                 = "_usajobs"
+        # ATS boards — many tasks, each makes one HTTP call
         for slug, name in GREENHOUSE_BOARDS.items():
             futures[pool.submit(_fetch_greenhouse, slug, name, query_tokens)] = slug
         for slug, name in LEVER_BOARDS.items():
             futures[pool.submit(_fetch_lever, slug, name, query_tokens)] = f"lever:{slug}"
         for slug, name in ASHBY_BOARDS.items():
             futures[pool.submit(_fetch_ashby, slug, name, query_tokens)] = f"ashby:{slug}"
-        futures[pool.submit(_fetch_himalayas, query_tokens)]            = "_himalayas"
-        futures[pool.submit(_fetch_remotive, query_tokens)]             = "_remotive"
-        futures[pool.submit(_fetch_remotive_contract, query_tokens)]    = "_remotive_contract"
-        futures[pool.submit(_fetch_jobicy, query_tokens)]               = "_jobicy"
-        futures[pool.submit(_fetch_jobicy_contract, query_tokens)]      = "_jobicy_contract"
-        futures[pool.submit(_fetch_weworkremotely_contract, query_tokens)] = "_weworkremotely"
-        futures[pool.submit(_fetch_adzuna, query_tokens)]               = "_adzuna"
-        futures[pool.submit(_fetch_remoteok, query_tokens)]             = "_remoteok"
-        futures[pool.submit(_fetch_arbeitnow, query_tokens)]           = "_arbeitnow"
-        futures[pool.submit(_fetch_usajobs, query_tokens)]             = "_usajobs"
 
         for future in as_completed(futures):
             try:
