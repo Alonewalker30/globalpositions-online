@@ -3,23 +3,23 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* ── Backgrounds ── */
-  --bg:           #F0F4FF;
-  --surface:      #FFFFFF;
-  --card:         #FFFFFF;
-  --card-hover:   #F5F7FF;
-  --overlay:      #EEF1FB;
+  /* ── Backgrounds — White & Green ── */
+  --bg:           #f0fdf4;
+  --surface:      #ffffff;
+  --card:         #ffffff;
+  --card-hover:   #f0fdf4;
+  --overlay:      #dcfce7;
 
   /* ── Borders ── */
   --border:       rgba(0,0,0,.08);
   --border-md:    rgba(0,0,0,.12);
   --border-strong:rgba(0,0,0,.18);
 
-  /* ── Accent — Electric Blue ── */
-  --accent:       #2563EB;
-  --accent-hover: #1D4ED8;
-  --accent-dim:   rgba(37,99,235,.10);
-  --accent-glow:  rgba(37,99,235,.20);
+  /* ── Accent — Green ── */
+  --accent:       #16a34a;
+  --accent-hover: #15803d;
+  --accent-dim:   rgba(22,163,74,.10);
+  --accent-glow:  rgba(22,163,74,.20);
   --violet:       #8B5CF6;
   --violet-dim:   rgba(139,92,246,.10);
   --cyan:         #06B6D4;
@@ -31,19 +31,19 @@
   --text-3:       #9CA3AF;
 
   /* ── Semantic ── */
-  --green:        #10B981;
-  --green-dim:    rgba(16,185,129,.10);
+  --green:        #16a34a;
+  --green-dim:    rgba(22,163,74,.10);
   --yellow:       #F59E0B;
   --yellow-dim:   rgba(245,158,11,.10);
   --red:          #EF4444;
   --red-dim:      rgba(239,68,68,.10);
 
-  /* ── Legacy aliases (keeps old component refs working) ── */
-  --navy:         #111827;
-  --blue:         #2563EB;
-  --blue-hover:   #1D4ED8;
-  --blue-light:   rgba(37,99,235,.10);
-  --blue-mid:     rgba(37,99,235,.25);
+  /* ── Legacy aliases updated for green theme ── */
+  --navy:         #14532d;
+  --blue:         #16a34a;
+  --blue-hover:   #15803d;
+  --blue-light:   rgba(22,163,74,.10);
+  --blue-mid:     rgba(22,163,74,.25);
   --slate-800:    #1E293B;
   --slate-600:    #64748B;
   --slate-400:    #94A3B8;
@@ -51,7 +51,7 @@
   --slate-100:    #F1F5F9;
   --slate-50:     #F8FAFC;
   --white:        #FFFFFF;
-  --green-light:  rgba(16,185,129,.10);
+  --green-light:  rgba(22,163,74,.10);
   --yellow-light: rgba(245,158,11,.10);
   --red-light:    rgba(239,68,68,.10);
   --purple:       #8B5CF6;
@@ -64,9 +64,9 @@
   --radius-sm:    8px;
   --radius-lg:    18px;
   --shadow:       0 1px 3px rgba(0,0,0,.07), 0 0 0 1px rgba(0,0,0,.04);
-  --shadow-md:    0 4px 16px rgba(0,0,0,.08), 0 0 0 1px rgba(37,99,235,.08);
-  --shadow-lg:    0 12px 40px rgba(0,0,0,.10), 0 0 0 1px rgba(37,99,235,.12);
-  --glow:         0 0 30px rgba(37,99,235,.12);
+  --shadow-md:    0 4px 16px rgba(0,0,0,.06), 0 0 0 1px rgba(22,163,74,.08);
+  --shadow-lg:    0 12px 40px rgba(0,0,0,.08), 0 0 0 1px rgba(22,163,74,.12);
+  --glow:         0 0 30px rgba(22,163,74,.15);
 
   /* ── Typography ── */
   --font-heading: 'Syne', system-ui, sans-serif;

@@ -7,6 +7,7 @@ interface SidebarProps {
   onChange: (p: NavPage) => void;
   collapsed: boolean;
   onToggle: () => void;
+  mobileOpen?: boolean;
 }
 
 const NAV: { id: NavPage; icon: React.ReactNode; label: string; badge?: string }[] = [
@@ -17,9 +18,9 @@ const NAV: { id: NavPage; icon: React.ReactNode; label: string; badge?: string }
   { id: 'copilot',   icon: <Bot size={19} />,             label: 'AI Copilot',  badge: 'AI' },
 ];
 
-export default function Sidebar({ active, onChange, collapsed, onToggle }: SidebarProps) {
+export default function Sidebar({ active, onChange, collapsed, onToggle, mobileOpen }: SidebarProps) {
   return (
-    <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
+    <aside className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
       {/* Logo */}
       <div className="sidebar-logo">
         <div className="sidebar-logo-icon"><Globe size={20} /></div>

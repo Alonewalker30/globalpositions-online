@@ -36,7 +36,8 @@
 .sidebar {
   position: fixed;
   top: 0; left: 0; bottom: 0;
-  background: var(--navy);
+  background: var(--surface);
+  border-right: 1px solid var(--border-md);
   display: flex;
   flex-direction: column;
   transition: width .25s ease;
@@ -65,7 +66,7 @@
 .sidebar-logo-text {
   font-size: 16px;
   font-weight: 800;
-  color: white;
+  color: var(--text-1);
   letter-spacing: -.3px;
   white-space: nowrap;
 }
@@ -84,7 +85,7 @@
   gap: 10px;
   padding: 10px 12px;
   border-radius: 8px;
-  color: rgba(255,255,255,.55);
+  color: var(--text-2);
   font-size: 14px;
   font-weight: 500;
   transition: all .15s;
@@ -93,8 +94,8 @@
   cursor: pointer;
 }
 
-.sidebar-item:hover { color: white; background: rgba(255,255,255,.08); }
-.sidebar-item.active { color: white; background: var(--blue); }
+.sidebar-item:hover { color: var(--accent); background: var(--accent-dim); }
+.sidebar-item.active { color: var(--accent); background: var(--accent-dim); font-weight: 600; }
 
 .sidebar-item-icon { flex-shrink: 0; width: 20px; display: flex; align-items: center; justify-content: center; }
 .sidebar-item-label { flex: 1; }
@@ -104,21 +105,21 @@
   border-radius: 99px;
   font-size: 10px;
   font-weight: 700;
-  background: rgba(255,255,255,.15);
-  color: white;
+  background: var(--accent-dim);
+  color: var(--accent);
 }
-.sidebar-badge.ai { background: linear-gradient(135deg, #7C3AED, #2563EB); }
+.sidebar-badge.ai { background: linear-gradient(135deg, #7C3AED, #16a34a); color: white; }
 
 .sidebar-collapse-btn {
   padding: 12px 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255,255,255,.35);
-  border-top: 1px solid rgba(255,255,255,.08);
+  color: var(--text-3);
+  border-top: 1px solid var(--border);
   transition: color .15s;
 }
-.sidebar-collapse-btn:hover { color: white; }
+.sidebar-collapse-btn:hover { color: var(--accent); }
 
 /* ═══════════════════════════════════════════════════
    TOPBAR
@@ -2735,4 +2736,119 @@
   background: var(--accent);
   color: #fff;
 }
-.tier-chip.active:hover { background: var(--accent-hover, #1D4ED8); }
+.tier-chip.active:hover { background: var(--accent-hover, #15803d); }
+
+/* ═══════════════════════════════════════════════════
+   MOBILE RESPONSIVE — sidebar overlay + layout fixes
+═══════════════════════════════════════════════════ */
+
+/* Sidebar active bar */
+.sidebar-active-bar {
+  position: absolute;
+  left: 0; top: 25%; bottom: 25%;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+}
+
+/* Sidebar section label */
+.sidebar-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-3);
+  letter-spacing: .08em;
+  padding: 8px 12px 4px;
+  text-transform: uppercase;
+}
+
+/* Sidebar divider */
+.sidebar-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+/* Sidebar logo dot */
+.sidebar-logo-dot { color: var(--accent); font-size: 16px; font-weight: 800; }
+
+/* Mobile backdrop */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 99;
+  cursor: pointer;
+}
+.sidebar-backdrop.visible { display: block; }
+
+/* Hamburger button — hidden on desktop */
+.topbar-hamburger {
+  display: none;
+  width: 36px; height: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--text-2);
+  transition: background .15s;
+  flex-shrink: 0;
+}
+.topbar-hamburger:hover { background: var(--accent-dim); color: var(--accent); }
+
+@media (max-width: 768px) {
+  /* Show hamburger */
+  .topbar-hamburger { display: flex; }
+
+  /* Sidebar becomes full-height overlay */
+  .sidebar {
+    transform: translateX(-100%);
+    width: 260px !important;
+    z-index: 300;
+    box-shadow: none;
+    transition: transform .28s ease, box-shadow .28s ease;
+  }
+  .sidebar.mobile-open {
+    transform: translateX(0);
+    box-shadow: 8px 0 32px rgba(0,0,0,.18);
+  }
+  /* Collapsed state on mobile just means fully hidden */
+  .sidebar.collapsed {
+    transform: translateX(-100%);
+    width: 260px !important;
+  }
+
+  /* Main area fills full width on mobile */
+  .app-main { margin-left: 0 !important; }
+
+  /* Less padding on mobile */
+  .app-content { padding: 16px 14px; }
+
+  .topbar { padding: 0 14px; gap: 8px; }
+  .topbar-title { font-size: 15px; }
+  .topbar-sub { display: none; }
+
+  /* Hide model tier selector on mobile */
+  .model-tier-selector { display: none; }
+
+  /* Search takes less space */
+  .topbar-search-wrap { width: auto; min-width: 0; }
+  .topbar-search-wrap.open .topbar-search-input { width: 150px; }
+
+  /* Resume builder toolbar wraps on mobile */
+  .rb-toolbar { flex-wrap: wrap; height: auto; padding: 8px 12px; gap: 6px; }
+  .rb-toolbar-left { flex-wrap: wrap; gap: 6px; }
+  .rb-toolbar-right { width: 100%; justify-content: flex-end; }
+
+  /* Resume body stacks */
+  .rb-body { flex-direction: column; }
+  .rb-editor { min-width: 0; }
+  .rb-preview-col { display: none; }
+
+  /* Jobs panel stacks */
+  .jb-layout { flex-direction: column; }
+  .jb-sidebar { width: 100%; max-height: 60px; overflow: hidden; }
+  .jb-detail { display: none; }
+
+  /* Dashboard grid collapses */
+  .dash-quick-grid { grid-template-columns: 1fr 1fr !important; gap: 10px; }
+  .dash-stats-row { grid-template-columns: 1fr 1fr !important; }
+
+  /* Cards full-width */
+  .card { border-radius: 10px; }
+}

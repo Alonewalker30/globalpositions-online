@@ -13,16 +13,32 @@ import './styles/App.css';
 export default function App() {
   const [page,        setPage]        = useState<NavPage>('dashboard');
   const [collapsed,   setCollapsed]   = useState(false);
+  const [mobileOpen,  setMobileOpen]  = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const navigate = (p: string) => setPage(p as NavPage);
+  const closeMobile = () => setMobileOpen(false);
 
   return (
     <div className={`app-shell ${collapsed ? 'sidebar-collapsed' : ''}`}>
-      <Sidebar active={page} onChange={setPage} collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
+      {/* Mobile backdrop */}
+      <div className={`sidebar-backdrop ${mobileOpen ? 'visible' : ''}`} onClick={closeMobile} />
+
+      <Sidebar
+        active={page}
+        onChange={(p) => { setPage(p); closeMobile(); }}
+        collapsed={collapsed}
+        onToggle={() => setCollapsed(c => !c)}
+        mobileOpen={mobileOpen}
+      />
 
       <div className="app-main">
-        <TopBar page={page} searchQuery={searchQuery} onSearch={setSearchQuery} />
+        <TopBar
+          page={page}
+          searchQuery={searchQuery}
+          onSearch={setSearchQuery}
+          onMobileMenuToggle={() => setMobileOpen(o => !o)}
+        />
 
         <main className="app-content">
           {page === 'dashboard' && <PanelErrorBoundary name="Dashboard"><DashboardPanel onNavigate={navigate} /></PanelErrorBoundary>}

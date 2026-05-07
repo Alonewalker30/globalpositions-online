@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Bell, X, Zap, BarChart2, Star } from 'lucide-react';
+import { Search, Bell, X, Zap, BarChart2, Star, Menu } from 'lucide-react';
 
 const PAGE_TITLES: Record<string, { title: string; sub: string }> = {
   dashboard: { title: 'Dashboard',        sub: 'Your career overview at a glance' },
@@ -19,9 +19,10 @@ interface TopBarProps {
   page: string;
   searchQuery: string;
   onSearch: (q: string) => void;
+  onMobileMenuToggle: () => void;
 }
 
-export default function TopBar({ page, searchQuery, onSearch }: TopBarProps) {
+export default function TopBar({ page, searchQuery, onSearch, onMobileMenuToggle }: TopBarProps) {
   const meta = PAGE_TITLES[page] ?? PAGE_TITLES.dashboard;
   const [searchOpen, setSearchOpen] = useState(false);
   const [modelTier, setModelTier] = useState(
@@ -35,6 +36,11 @@ export default function TopBar({ page, searchQuery, onSearch }: TopBarProps) {
 
   return (
     <header className="topbar">
+      {/* Hamburger — visible on mobile only */}
+      <button className="topbar-hamburger" onClick={onMobileMenuToggle} aria-label="Open menu">
+        <Menu size={20} />
+      </button>
+
       <div className="topbar-left">
         <h1 className="topbar-title">{meta.title}</h1>
         <p className="topbar-sub">{meta.sub}</p>
