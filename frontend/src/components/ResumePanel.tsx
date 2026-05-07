@@ -235,7 +235,12 @@ export default function ResumePanel() {
       }
       upd(patch);
       setRewriteMsg(`Rewrite complete — ${rewrites.length} experience section${rewrites.length !== 1 ? 's' : ''} updated`);
-    } catch { setRewriteMsg('Rewrite failed. Check your AI key in backend settings.'); }
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail || e?.message || '';
+      setRewriteMsg(detail.includes('502') || detail.includes('Network') || !detail
+        ? 'Backend is starting up — wait 30 seconds and try again (Render free tier spins down).'
+        : `Rewrite failed: ${detail}`);
+    }
     finally { setRewriting(false); }
   };
 
@@ -258,7 +263,13 @@ Write a 3-paragraph cover letter. Opening: express enthusiasm and highlight the 
         history: [],
       });
       setCoverLetter(res.data.reply || '');
-    } catch { setCoverLetter('Unable to generate. Check your Anthropic API key in backend/.env'); }
+    } catch (e: any) {
+      setCoverLetter(
+        e?.response?.status === 502 || e?.response?.status === 503
+          ? 'Backend is starting up — wait ~30 seconds then try again.'
+          : 'Unable to generate. Check the AI key is set in Render environment variables.'
+      );
+    }
     finally { setCoverLoading(false); }
   };
 
@@ -285,7 +296,12 @@ Write a 3-paragraph cover letter. Opening: express enthusiasm and highlight the 
       setImportOpen(false);
       setImportText('');
     } catch (e: any) {
-      setImportError(e?.response?.data?.detail || e?.message || 'Parsing failed. Try again or check backend logs.');
+      const detail = e?.response?.data?.detail || e?.message || '';
+      setImportError(
+        e?.response?.status === 502 || e?.response?.status === 503 || !detail
+          ? 'Backend is starting up — Render free tier takes ~30s to wake. Wait and try again.'
+          : detail
+      );
     } finally { setImporting(false); }
   };
 
