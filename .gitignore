@@ -1,5 +1,8 @@
 node_modules/
 dist/
+# Capacitor native projects (large, generated — rebuild with: npm run mobile:build)
+frontend/android/
+frontend/ios/
 .env
 .env.local
 .env.*.local
