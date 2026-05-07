@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Model names
 _CEREBRAS_FAST_MODEL = "llama3.1-8b"
-_CEREBRAS_MODEL      = "llama3.3-70b"
+_CEREBRAS_MODEL      = "llama3.1-70b"   # confirmed available; 3.3-70b not yet on all tiers
 _GEMINI_FAST_MODEL   = "gemini-2.0-flash"
 _GEMINI_MODEL        = "gemini-2.0-flash"
 _GROQ_FAST_MODEL     = "llama-3.1-8b-instant"
@@ -247,7 +247,22 @@ class ClaudeService:
         return self._chat(prompt, max_tokens)
 
     def _quality_chat(self, prompt: str, max_tokens: int = 3000, system: str = "") -> str:
-        """Cerebras 70B → Groq 70B → main client. For reasoning, rewrites, suggestions."""
+        """Groq DeepSeek R1 → Cerebras 70B → Gemini → Together → main client.
+        Groq is tried first for quality tasks: DeepSeek R1 is more capable for rewrites."""
+        if self._groq_client:
+            try:
+                msgs = []
+                if system:
+                    msgs.append({"role": "system", "content": system})
+                msgs.append({"role": "user", "content": prompt})
+                r = self._groq_client.chat.completions.create(
+                    model=_GROQ_MODEL, max_tokens=max_tokens, messages=msgs, timeout=90,
+                )
+                logger.info("quality_chat: Groq (%s)", _GROQ_MODEL)
+                return (r.choices[0].message.content or "").strip()
+            except Exception as exc:
+                logger.warning("quality_chat: Groq failed (%s), trying Cerebras", exc)
+
         if self._cerebras_client:
             try:
                 msgs = []
@@ -274,21 +289,7 @@ class ClaudeService:
                 logger.info("quality_chat: Gemini (%s)", _GEMINI_MODEL)
                 return (r.choices[0].message.content or "").strip()
             except Exception as exc:
-                logger.warning("quality_chat: Gemini failed (%s), trying Groq", exc)
-
-        if self._groq_client:
-            try:
-                msgs = []
-                if system:
-                    msgs.append({"role": "system", "content": system})
-                msgs.append({"role": "user", "content": prompt})
-                r = self._groq_client.chat.completions.create(
-                    model=_GROQ_MODEL, max_tokens=max_tokens, messages=msgs, timeout=60,
-                )
-                logger.info("quality_chat: Groq (%s)", _GROQ_MODEL)
-                return (r.choices[0].message.content or "").strip()
-            except Exception as exc:
-                logger.warning("quality_chat: Groq 70B failed (%s), trying Together AI", exc)
+                logger.warning("quality_chat: Gemini failed (%s), trying Together AI", exc)
 
         if self._together_client:
             try:
