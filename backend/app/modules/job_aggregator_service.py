@@ -271,7 +271,7 @@ def _fetch_remotive(query_tokens: List[str]) -> List[Dict]:
         with httpx.Client(timeout=15) as client:
             r = client.get(
                 "https://remotive.com/api/remote-jobs",
-                params={"search": query_str, "limit": 100},
+                params={"search": query_str, "limit": 100, "location": "usa"},
                 headers={"User-Agent": "CareerBot/1.0"},
             )
             r.raise_for_status()
@@ -306,49 +306,30 @@ def _fetch_remotive(query_tokens: List[str]) -> List[Dict]:
     return jobs
 
 
-def _fetch_arbeitnow(query_tokens: List[str]) -> List[Dict]:
-    try:
-        with httpx.Client(timeout=15, follow_redirects=True) as client:
-            r = client.get(
-                "https://www.arbeitnow.com/api/job-board-api",
-                headers={"User-Agent": "CareerBot/1.0"},
-            )
-            r.raise_for_status()
-        data = r.json()
-    except Exception as exc:
-        logger.debug("Arbeitnow failed: %s", exc)
-        return []
+_USA_KEYWORDS = {
+    "usa", "united states", "u.s.", "u.s.a", "remote", "worldwide", "anywhere",
+    # states
+    "alabama","alaska","arizona","arkansas","california","colorado","connecticut",
+    "delaware","florida","georgia","hawaii","idaho","illinois","indiana","iowa",
+    "kansas","kentucky","louisiana","maine","maryland","massachusetts","michigan",
+    "minnesota","mississippi","missouri","montana","nebraska","nevada",
+    "new hampshire","new jersey","new mexico","new york","north carolina",
+    "north dakota","ohio","oklahoma","oregon","pennsylvania","rhode island",
+    "south carolina","south dakota","tennessee","texas","utah","vermont",
+    "virginia","washington","west virginia","wisconsin","wyoming",
+    # abbreviations
+    "al","ak","az","ar","ca","co","ct","de","fl","ga","hi","id","il","in",
+    "ia","ks","ky","la","me","md","ma","mi","mn","ms","mo","mt","ne","nv",
+    "nh","nj","nm","ny","nc","nd","oh","ok","or","pa","ri","sc","sd","tn",
+    "tx","ut","vt","va","wa","wv","wi","wy","dc",
+}
 
-    jobs = []
-    for j in data.get("data", []):
-        title = j.get("title", "")
-        if not _matches(title, query_tokens):
-            continue
-        url = j.get("url", "")
-        if not url:
-            continue
-        remote = j.get("remote", False)
-        location = "Remote" if remote else (j.get("location", "") or "On-site")
-        tags = j.get("tags", []) or []
-        created = j.get("created_at", "")
-        posted_at = ""
-        if created:
-            try:
-                posted_at = datetime.fromtimestamp(int(created), tz=timezone.utc).isoformat()
-            except Exception:
-                posted_at = str(created)
-        jobs.append({
-            "title":     title,
-            "company":   j.get("company_name", ""),
-            "location":  location,
-            "salary":    "",
-            "tags":      tags[:4],
-            "url":       url,
-            "posted_at": posted_at,
-            "source":    "Arbeitnow",
-            "ats":       "arbeitnow",
-        })
-    return jobs
+def _is_usa_or_remote(location: str) -> bool:
+    """Return True if job is USA-based, remote, or worldwide."""
+    if not location:
+        return True
+    loc = location.lower()
+    return any(kw in loc for kw in _USA_KEYWORDS)
 
 
 def _fetch_himalayas(query_tokens: List[str]) -> List[Dict]:
@@ -446,7 +427,7 @@ def _fetch_jobicy(query_tokens: List[str]) -> List[Dict]:
         with httpx.Client(timeout=15) as client:
             r = client.get(
                 "https://jobicy.com/api/v2/remote-jobs",
-                params={"count": 50, "tag": tag},
+                params={"count": 50, "tag": tag, "geo": "usa"},
                 headers={"User-Agent": "CareerBot/1.0"},
             )
             r.raise_for_status()
@@ -601,7 +582,7 @@ def _is_within_days(posted_at: str, days: int = 30) -> bool:
 def _fetch_all(query_tokens: List[str]) -> List[Dict]:
     """Fetch from all sources in parallel and return deduplicated jobs sorted newest-first."""
     all_jobs: List[Dict] = []
-    max_workers = len(GREENHOUSE_BOARDS) + len(LEVER_BOARDS) + len(ASHBY_BOARDS) + 7
+    max_workers = len(GREENHOUSE_BOARDS) + len(LEVER_BOARDS) + len(ASHBY_BOARDS) + 6
 
     with ThreadPoolExecutor(max_workers=min(max_workers, 25)) as pool:
         futures = {}
@@ -613,7 +594,6 @@ def _fetch_all(query_tokens: List[str]) -> List[Dict]:
             futures[pool.submit(_fetch_ashby, slug, name, query_tokens)] = f"ashby:{slug}"
         futures[pool.submit(_fetch_himalayas, query_tokens)]  = "_himalayas"
         futures[pool.submit(_fetch_remotive, query_tokens)]   = "_remotive"
-        futures[pool.submit(_fetch_arbeitnow, query_tokens)]  = "_arbeitnow"
         futures[pool.submit(_fetch_jobicy, query_tokens)]     = "_jobicy"
         futures[pool.submit(_fetch_adzuna, query_tokens)]     = "_adzuna"
         futures[pool.submit(_fetch_remoteok, query_tokens)]   = "_remoteok"
@@ -623,6 +603,13 @@ def _fetch_all(query_tokens: List[str]) -> List[Dict]:
                 all_jobs.extend(future.result())
             except Exception as exc:
                 logger.debug("Worker error: %s", exc)
+
+    # Keep USA, remote, and worldwide jobs only; ATS board jobs always pass through
+    ats_sources = {"Greenhouse", "Lever", "Ashby"}
+    all_jobs = [
+        j for j in all_jobs
+        if j.get("source") in ats_sources or _is_usa_or_remote(j.get("location", ""))
+    ]
 
     # Filter to last 60 days
     all_jobs = [j for j in all_jobs if _is_within_days(j.get("posted_at", ""), 60)]
