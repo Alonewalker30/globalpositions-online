@@ -1,6 +1,6 @@
-import { useRef, useMemo, useState } from 'react';
+import { useRef, useMemo, useState, Suspense } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Stars, Html } from '@react-three/drei';
+import { OrbitControls, Stars, Html, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 
 export interface CityHub {
@@ -44,7 +44,7 @@ function CameraController({ targetPos }: { targetPos: THREE.Vector3 | null }) {
 
   useFrame(() => {
     const dest = targetPos
-      ? targetPos.clone().normalize().multiplyScalar(1.85)
+      ? targetPos.clone().normalize().multiplyScalar(2.0)
       : defaultPos.current;
     camera.position.lerp(dest, 0.05);
     camera.lookAt(0, 0, 0);
@@ -54,12 +54,7 @@ function CameraController({ targetPos }: { targetPos: THREE.Vector3 | null }) {
 }
 
 function PulsingDot({
-  position,
-  size,
-  isSelected,
-  hub,
-  onSelect,
-  onReset,
+  position, size, isSelected, hub, onSelect, onReset,
 }: {
   position: THREE.Vector3;
   size: number;
@@ -88,15 +83,15 @@ function PulsingDot({
         onDoubleClick={(e) => { e.stopPropagation(); onReset(); }}
       >
         <sphereGeometry args={[size * (isSelected ? 1.9 : 1), 10, 10]} />
-        <meshBasicMaterial color={isSelected ? '#F59E0B' : '#16a34a'} />
+        <meshBasicMaterial color={isSelected ? '#F59E0B' : '#4ade80'} />
       </mesh>
       <mesh ref={ringRef}>
         <sphereGeometry args={[size * 2.6, 10, 10]} />
-        <meshBasicMaterial color={isSelected ? '#FCD34D' : '#15803d'} transparent opacity={0.4} />
+        <meshBasicMaterial color={isSelected ? '#FCD34D' : '#16a34a'} transparent opacity={0.4} />
       </mesh>
       <Html center position={[0, size * 6, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
         <div style={{
-          background: isSelected ? 'rgba(245,158,11,0.96)' : 'rgba(10,31,18,0.85)',
+          background: isSelected ? 'rgba(245,158,11,0.96)' : 'rgba(0,0,0,0.72)',
           color: '#fff',
           padding: '3px 9px',
           borderRadius: '14px',
@@ -104,8 +99,8 @@ function PulsingDot({
           fontWeight: 700,
           whiteSpace: 'nowrap',
           fontFamily: 'Inter, sans-serif',
-          border: `1px solid ${isSelected ? '#FCD34D55' : 'rgba(22,163,74,0.35)'}`,
-          opacity: isSelected ? 1 : 0.75,
+          border: `1px solid ${isSelected ? '#FCD34D55' : 'rgba(74,222,128,0.4)'}`,
+          opacity: isSelected ? 1 : 0.82,
           boxShadow: isSelected ? '0 0 16px rgba(245,158,11,0.6)' : 'none',
           transition: 'all 0.3s',
           letterSpacing: '0.02em',
@@ -119,14 +114,40 @@ function PulsingDot({
 
 function Arc({ from, to }: { from: THREE.Vector3; to: THREE.Vector3 }) {
   const lineObj = useMemo(() => {
-    const mid = from.clone().add(to).normalize().multiplyScalar(1.35);
+    const mid = from.clone().add(to).normalize().multiplyScalar(1.4);
     const curve = new THREE.QuadraticBezierCurve3(from, mid, to);
     const points = curve.getPoints(40);
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    const material = new THREE.LineBasicMaterial({ color: '#16a34a', transparent: true, opacity: 0.22 });
+    const material = new THREE.LineBasicMaterial({ color: '#4ade80', transparent: true, opacity: 0.3 });
     return new THREE.Line(geometry, material);
   }, [from, to]);
   return <primitive object={lineObj} />;
+}
+
+// Real Earth texture sphere — suspends while texture loads
+function EarthSphere({ onReset }: { onReset: () => void }) {
+  // Free NASA-based Earth texture via unpkg CDN (no cost, no API key)
+  const texture = useTexture('https://unpkg.com/three-globe/example/img/earth-dark.jpg');
+  return (
+    <mesh onDoubleClick={(e) => { e.stopPropagation(); onReset(); }}>
+      <sphereGeometry args={[1, 64, 64]} />
+      <meshStandardMaterial
+        map={texture}
+        roughness={0.85}
+        metalness={0.05}
+      />
+    </mesh>
+  );
+}
+
+// Fallback shown while texture downloads
+function EarthFallback({ onReset }: { onReset: () => void }) {
+  return (
+    <mesh onDoubleClick={(e) => { e.stopPropagation(); onReset(); }}>
+      <sphereGeometry args={[1, 64, 64]} />
+      <meshPhongMaterial color="#0b2416" emissive="#0a1f12" specular="#16a34a" shininess={30} />
+    </mesh>
+  );
 }
 
 function GlobeMesh({
@@ -142,7 +163,7 @@ function GlobeMesh({
 
   useFrame((_, delta) => {
     if (groupRef.current && !selectedCity) {
-      groupRef.current.rotation.y += delta * 0.12;
+      groupRef.current.rotation.y += delta * 0.1;
     }
   });
 
@@ -160,19 +181,18 @@ function GlobeMesh({
 
   return (
     <group ref={groupRef}>
-      {/* Globe body — double-click anywhere on sphere to reset */}
-      <mesh onDoubleClick={(e) => { e.stopPropagation(); onReset(); }}>
-        <sphereGeometry args={[1, 64, 64]} />
-        <meshPhongMaterial color="#061A10" emissive="#0A1F12" specular="#16a34a" shininess={40} />
-      </mesh>
+      {/* Real world map texture — falls back to dark sphere while loading */}
+      <Suspense fallback={<EarthFallback onReset={onReset} />}>
+        <EarthSphere onReset={onReset} />
+      </Suspense>
+
+      {/* Subtle green wireframe grid overlay */}
       <mesh>
-        <sphereGeometry args={[1.002, 36, 18]} />
-        <meshBasicMaterial color="#16a34a" wireframe transparent opacity={0.06} />
+        <sphereGeometry args={[1.003, 36, 18]} />
+        <meshBasicMaterial color="#4ade80" wireframe transparent opacity={0.04} />
       </mesh>
-      <mesh>
-        <sphereGeometry args={[1.04, 32, 32]} />
-        <meshBasicMaterial color="#14532d" transparent opacity={0.04} side={THREE.BackSide} />
-      </mesh>
+
+      {/* City pins */}
       {dotData.map((d, i) => (
         <PulsingDot
           key={i}
@@ -184,6 +204,8 @@ function GlobeMesh({
           onReset={onReset}
         />
       ))}
+
+      {/* Connection arcs from SF to major hubs */}
       {arcs.map((a, i) => <Arc key={i} from={a.from} to={a.to} />)}
     </group>
   );
@@ -214,11 +236,10 @@ export default function Globe3D({ onCitySelect }: Globe3DProps) {
 
   return (
     <Canvas camera={{ position: [0, 0, 2.8], fov: 42 }} style={{ background: 'transparent' }}>
-      <ambientLight intensity={0.2} />
-      <directionalLight position={[4, 2, 4]}   intensity={1.2} color="#16a34a" />
-      <directionalLight position={[-4, -2, -2]} intensity={0.4} color="#15803d" />
-      <pointLight position={[0, 3, 0]} intensity={0.5} color="#4ade80" distance={6} />
-      <Stars radius={120} depth={60} count={4000} factor={3} saturation={0} fade speed={0.5} />
+      <ambientLight intensity={0.6} />
+      <directionalLight position={[5, 3, 5]}   intensity={1.0} color="#ffffff" />
+      <directionalLight position={[-3, -2, -2]} intensity={0.3} color="#86efac" />
+      <Stars radius={120} depth={60} count={3000} factor={3} saturation={0} fade speed={0.4} />
       <CameraController targetPos={selectedCityPos} />
       <GlobeMesh
         selectedCity={selectedCity}
@@ -229,9 +250,9 @@ export default function Globe3D({ onCitySelect }: Globe3DProps) {
         enabled={!selectedCity}
         enableZoom={false}
         enablePan={false}
-        minPolarAngle={Math.PI / 4}
-        maxPolarAngle={(3 * Math.PI) / 4}
-        rotateSpeed={0.4}
+        minPolarAngle={Math.PI / 5}
+        maxPolarAngle={(4 * Math.PI) / 5}
+        rotateSpeed={0.5}
       />
     </Canvas>
   );
