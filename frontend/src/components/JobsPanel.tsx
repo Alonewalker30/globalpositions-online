@@ -526,18 +526,35 @@ export default function JobsPanel({ searchQuery, onNavigate }: JobsPanelProps) {
   const activeFilterCount = filters.workType.size + filters.expLevel.size + filters.jobType.size
     + filters.source.size + (filters.datePosted !== 'any' ? 1 : 0) + (filters.location ? 1 : 0);
 
+  const isContractRole = (j: Job) => {
+    const text = `${j.title} ${j.tags?.join(' ')} ${j.source || ''}`.toLowerCase();
+    return /contract|freelance|c2c|corp.to.corp|corp2corp|1099|weworkremotely/.test(text);
+  };
+
   const filtered = useMemo(() => {
+    // When C2C or 1099 filter is active, relax date filter to 7 days minimum
+    // (contract boards post less frequently — 24h almost always returns zero)
+    const contractActive = filters.jobType.has('C2C') || filters.jobType.has('1099');
+    const effectiveDateDays = contractActive && filters.datePosted === '1' ? 7 : parseInt(filters.datePosted || '0');
+
     let list = jobs.filter(j => {
       if (filters.workType.size && !filters.workType.has(inferWorkType(j))) return false;
       if (filters.expLevel.size && !filters.expLevel.has(inferExpLevel(j.title))) return false;
       if (filters.source.size && !filters.source.has(j.source || '')) return false;
-      if (filters.jobType.has('Contract') && !`${j.title} ${j.tags?.join(' ')}`.toLowerCase().includes('contract')) return false;
-      if (filters.jobType.has('C2C') && !`${j.title} ${j.tags?.join(' ')}`.toLowerCase().match(/c2c|corp.to.corp|corp2corp/)) return false;
-      if (filters.jobType.has('1099') && !`${j.title} ${j.tags?.join(' ')}`.includes('1099')) return false;
+      if (filters.jobType.has('Contract') && !isContractRole(j)) return false;
+      // C2C and 1099: match explicit terms OR any contract-tagged role (C2C/1099 are contract sub-types)
+      if (filters.jobType.has('C2C')) {
+        const text = `${j.title} ${j.tags?.join(' ')}`.toLowerCase();
+        if (!text.match(/c2c|corp.to.corp|corp2corp/) && !isContractRole(j)) return false;
+      }
+      if (filters.jobType.has('1099')) {
+        const text = `${j.title} ${j.tags?.join(' ')}`.toLowerCase();
+        if (!text.includes('1099') && !isContractRole(j)) return false;
+      }
       if (filters.jobType.has('Internship') && !j.title.toLowerCase().includes('intern')) return false;
       if (filters.datePosted !== 'any') {
         const d = daysAgo(j.posted_at);
-        if (d !== null && d > parseInt(filters.datePosted)) return false;
+        if (d !== null && d > effectiveDateDays) return false;
       }
       if (filters.location) {
         const loc = `${j.location} ${j.tags?.join(' ')}`.toLowerCase();
@@ -675,6 +692,13 @@ export default function JobsPanel({ searchQuery, onNavigate }: JobsPanelProps) {
                   <Globe size={12}/> {totalLabel.toLocaleString()} jobs · 8 sources · USA
                 </span>
                 <ActiveFilters filters={filters} onChange={setFilters}/>
+              </div>
+            )}
+
+            {/* Auto-relaxed date note for contract filters */}
+            {(filters.jobType.has('C2C') || filters.jobType.has('1099')) && filters.datePosted === '1' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, fontSize: 12, color: '#b45309', margin: '0 0 4px' }}>
+                <span>⚡</span> Contract boards post less often — showing past 7 days instead of 24h for C2C / 1099 results.
               </div>
             )}
 
