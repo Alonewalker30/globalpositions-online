@@ -655,7 +655,7 @@ def _fetch_jobicy_contract(query_tokens: List[str]) -> List[Dict]:
             "title":         j.get("jobTitle", ""),
             "company":       j.get("companyName", ""),
             "location":      j.get("jobGeo", "Remote") or "Remote",
-            "salary":        j.get("annualSalaryMin", "") and f"${j['annualSalaryMin']:,}+" or "",
+            "salary":        (lambda s: f"${s:,}+" if isinstance(s, (int, float)) and s > 0 else "")(j.get("annualSalaryMin")),
             "tags":          tags,
             "url":           url,
             "posted_at":     j.get("pubDate", ""),

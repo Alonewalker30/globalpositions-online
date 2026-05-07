@@ -75,6 +75,13 @@ function formatAgo(days: number | null): string {
   return `${Math.floor(days / 30)}mo ago`;
 }
 
+const CONTRACT_CHIPS = ['C2C', '1099'] as const;
+
+const isContractRole = (j: { title: string; tags?: string[]; source?: string }) => {
+  const text = `${j.title} ${j.tags?.join(' ')} ${j.source || ''}`.toLowerCase();
+  return /contract|freelance|c2c|corp.to.corp|corp2corp|1099|weworkremotely/.test(text);
+};
+
 const SOURCE_COLORS: Record<string, string> = {
   Greenhouse:     '#16a34a',
   Lever:          '#15803d',
@@ -526,11 +533,6 @@ export default function JobsPanel({ searchQuery, onNavigate }: JobsPanelProps) {
   const activeFilterCount = filters.workType.size + filters.expLevel.size + filters.jobType.size
     + filters.source.size + (filters.datePosted !== 'any' ? 1 : 0) + (filters.location ? 1 : 0);
 
-  const isContractRole = (j: Job) => {
-    const text = `${j.title} ${j.tags?.join(' ')} ${j.source || ''}`.toLowerCase();
-    return /contract|freelance|c2c|corp.to.corp|corp2corp|1099|weworkremotely/.test(text);
-  };
-
   const filtered = useMemo(() => {
     // When C2C or 1099 filter is active, relax date filter to 7 days minimum
     // (contract boards post less frequently — 24h almost always returns zero)
@@ -589,8 +591,7 @@ export default function JobsPanel({ searchQuery, onNavigate }: JobsPanelProps) {
   const hasMore      = tab === 'live' && visibleCount < filtered.length;
   const totalLabel   = tab === 'live' ? filtered.length : savedJobs.length;
 
-  const QUICK_CHIPS   = ['Remote', 'Senior', 'Entry', 'Contract', 'AI / ML', 'Frontend', 'Backend', 'Data'];
-  const CONTRACT_CHIPS = ['C2C', '1099'];
+  const QUICK_CHIPS = ['Remote', 'Senior', 'Entry', 'Contract', 'AI / ML', 'Frontend', 'Backend', 'Data'];
 
   return (
     <div className="jb-shell">
