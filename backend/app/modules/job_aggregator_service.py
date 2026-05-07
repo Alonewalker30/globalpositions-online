@@ -308,9 +308,9 @@ def _fetch_remotive(query_tokens: List[str]) -> List[Dict]:
 
 def _fetch_arbeitnow(query_tokens: List[str]) -> List[Dict]:
     try:
-        with httpx.Client(timeout=15) as client:
+        with httpx.Client(timeout=15, follow_redirects=True) as client:
             r = client.get(
-                "https://arbeitnow.com/api/job-board-api",
+                "https://www.arbeitnow.com/api/job-board-api",
                 headers={"User-Agent": "CareerBot/1.0"},
             )
             r.raise_for_status()
@@ -581,8 +581,8 @@ class JobAggregatorService:
                 except Exception as exc:
                     logger.debug("Worker error: %s", exc)
 
-        # Filter to last 30 days
-        all_jobs = [j for j in all_jobs if _is_within_days(j.get("posted_at", ""), 30)]
+        # Filter to last 60 days
+        all_jobs = [j for j in all_jobs if _is_within_days(j.get("posted_at", ""), 60)]
 
         # Deduplicate by url
         seen: set = set()
