@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Model names
 _CEREBRAS_FAST_MODEL = "llama3.1-8b"
-_CEREBRAS_MODEL      = "llama-3.3-70b"
+_CEREBRAS_MODEL      = "llama3.3-70b"
 _GEMINI_FAST_MODEL   = "gemini-2.0-flash"
 _GEMINI_MODEL        = "gemini-2.0-flash"
 _GROQ_FAST_MODEL     = "llama-3.1-8b-instant"

@@ -656,25 +656,36 @@ async def career_chat_stream(request: Request, req: ChatRequest):
     msgs.append({"role": "user", "content": req.message})
 
     def event_stream():
-        try:
-            if is_openai_compat:
-                stream = chat_client.chat.completions.create(
-                    model=chat_model, max_tokens=2048, messages=msgs, stream=True,
-                )
-                for chunk in stream:
-                    delta = chunk.choices[0].delta.content or ""
-                    if delta:
-                        yield f"data: {json.dumps({'token': delta})}\n\n"
-            else:
-                with claude_service.client.messages.stream(
-                    model=chat_model, max_tokens=2048, system=system,
-                    messages=[m for m in msgs if m["role"] != "system"],
-                ) as stream:
-                    for text in stream.text_stream:
-                        yield f"data: {json.dumps({'token': text})}\n\n"
-        except Exception as exc:
-            logger.exception("stream error: %s", exc)
-            yield f"data: {json.dumps({'error': str(exc)})}\n\n"
+        # Ordered fallback chain: requested tier → Groq → Anthropic
+        clients_to_try = [(chat_client, chat_model, is_openai_compat)]
+        if chat_client is not claude_service._groq_client and claude_service._groq_client:
+            from app.modules.claude_service import _GROQ_MODEL
+            clients_to_try.append((claude_service._groq_client, _GROQ_MODEL, True))
+        if chat_client is not claude_service.client:
+            clients_to_try.append((claude_service.client, claude_service.model, claude_service.mode != "anthropic"))
+
+        for attempt_client, attempt_model, compat in clients_to_try:
+            try:
+                if compat:
+                    stream = attempt_client.chat.completions.create(
+                        model=attempt_model, max_tokens=2048, messages=msgs, stream=True,
+                    )
+                    for chunk in stream:
+                        delta = chunk.choices[0].delta.content or ""
+                        if delta:
+                            yield f"data: {json.dumps({'token': delta})}\n\n"
+                else:
+                    with claude_service.client.messages.stream(
+                        model=attempt_model, max_tokens=2048, system=system,
+                        messages=[m for m in msgs if m["role"] != "system"],
+                    ) as stream:
+                        for text in stream.text_stream:
+                            yield f"data: {json.dumps({'token': text})}\n\n"
+                break  # success — stop trying
+            except Exception as exc:
+                logger.warning("stream attempt failed (%s %s): %s", attempt_model, attempt_client, exc)
+                if (attempt_client, attempt_model, compat) is clients_to_try[-1]:
+                    yield f"data: {json.dumps({'error': str(exc)})}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(
