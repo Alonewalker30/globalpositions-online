@@ -1,16 +1,17 @@
 """
-AI service — provider priority: Cerebras → NVIDIA NIM → Groq → Together AI → Anthropic.
+AI service — provider priority: Cerebras → Gemini → NVIDIA NIM → Groq → Together AI → Anthropic.
 
-Cerebras  (fastest, free):  https://cloud.cerebras.ai  — set CEREBRAS_API_KEY
-NVIDIA NIM (free, 80 models): https://build.nvidia.com   — set NVIDIA_API_KEY
-Groq      (free fallback):  https://console.groq.com   — set GROQ_API_KEY
-Together AI (free tier):    https://api.together.xyz   — set TOGETHER_API_KEY
-Anthropic (last resort):    https://console.anthropic.com
+Cerebras   (fastest, free):   https://cloud.cerebras.ai        — set CEREBRAS_API_KEY
+Gemini     (free, 1500/day):  https://aistudio.google.com      — set GEMINI_API_KEY
+NVIDIA NIM (free, 80 models): https://build.nvidia.com         — set NVIDIA_API_KEY
+Groq       (free fallback):   https://console.groq.com         — set GROQ_API_KEY
+Together AI (free tier):      https://api.together.xyz         — set TOGETHER_API_KEY
+Anthropic  (last resort):     https://console.anthropic.com
 
 Model tiers (user-selectable):
-  fast     → Cerebras 8B / Groq 8B   — instant, structured tasks
-  balanced → Cerebras 70B / Groq 70B — default, good quality (default)
-  quality  → best available           — heavy reasoning, rewrites
+  fast     → Cerebras 8B / Gemini Flash / Groq 8B  — instant, structured tasks
+  balanced → Cerebras 70B / Gemini Flash / Groq 70B — default, good quality (default)
+  quality  → best available                          — heavy reasoning, rewrites
 """
 import json
 import logging
@@ -21,13 +22,16 @@ logger = logging.getLogger(__name__)
 # Model names
 _CEREBRAS_FAST_MODEL = "llama3.1-8b"
 _CEREBRAS_MODEL      = "llama-3.3-70b"
+_GEMINI_FAST_MODEL   = "gemini-2.0-flash"
+_GEMINI_MODEL        = "gemini-2.0-flash"
 _GROQ_FAST_MODEL     = "llama-3.1-8b-instant"
-_GROQ_MODEL          = "llama-3.3-70b-versatile"
+_GROQ_MODEL          = "deepseek-r1-distill-llama-70b"
 _TOGETHER_MODEL      = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
 _ANTHROPIC_MODEL     = "claude-3-5-sonnet-20241022"
 
 # Base URLs
 _CEREBRAS_BASE_URL = "https://api.cerebras.ai/v1"
+_GEMINI_BASE_URL   = "https://generativelanguage.googleapis.com/v1beta/openai/"
 _NVIDIA_BASE_URL   = "https://integrate.api.nvidia.com/v1"
 _TOGETHER_BASE_URL = "https://api.together.xyz/v1"
 
@@ -44,6 +48,12 @@ def _build_client():
         from openai import OpenAI
         logger.info("AI backend: Cerebras (%s)", _CEREBRAS_MODEL)
         return OpenAI(api_key=cerebras_key, base_url=_CEREBRAS_BASE_URL), "cerebras"
+
+    gemini_key = (settings.gemini_api_key or "").strip()
+    if gemini_key:
+        from openai import OpenAI
+        logger.info("AI backend: Gemini (%s)", _GEMINI_MODEL)
+        return OpenAI(api_key=gemini_key, base_url=_GEMINI_BASE_URL), "gemini"
 
     if nvidia_key:
         from openai import OpenAI
@@ -78,6 +88,8 @@ class ClaudeService:
 
         if self.mode == "cerebras":
             self.model = _CEREBRAS_MODEL
+        elif self.mode == "gemini":
+            self.model = _GEMINI_MODEL
         elif self.mode == "nvidia":
             self.model = (settings.nvidia_model or "meta/llama-3.3-70b-instruct").strip()
         elif self.mode == "groq":
@@ -88,6 +100,13 @@ class ClaudeService:
             self.model = _ANTHROPIC_MODEL
 
         # Cache all free provider clients so every path can fall through the full chain
+        gemini_key = (settings.gemini_api_key or "").strip()
+        if gemini_key:
+            from openai import OpenAI
+            self._gemini_client = OpenAI(api_key=gemini_key, base_url=_GEMINI_BASE_URL)
+        else:
+            self._gemini_client = None
+
         groq_key = (settings.groq_api_key or "").strip()
         if groq_key and not groq_key.startswith("your_"):
             from groq import Groq
@@ -117,6 +136,8 @@ class ClaudeService:
         if tier == "fast":
             if self._cerebras_client:
                 return self._cerebras_client, _CEREBRAS_FAST_MODEL
+            if self._gemini_client:
+                return self._gemini_client, _GEMINI_FAST_MODEL
             if self._groq_client:
                 return self._groq_client, _GROQ_FAST_MODEL
             if self._together_client:
@@ -125,6 +146,8 @@ class ClaudeService:
         if tier == "quality":
             if self._cerebras_client:
                 return self._cerebras_client, _CEREBRAS_MODEL
+            if self._gemini_client:
+                return self._gemini_client, _GEMINI_MODEL
             if self._groq_client:
                 return self._groq_client, _GROQ_MODEL
             if self._together_client:
@@ -133,6 +156,8 @@ class ClaudeService:
         # balanced (default)
         if self._cerebras_client:
             return self._cerebras_client, _CEREBRAS_MODEL
+        if self._gemini_client:
+            return self._gemini_client, _GEMINI_MODEL
         if self._groq_client:
             return self._groq_client, _GROQ_MODEL
         if self._together_client:
@@ -143,7 +168,7 @@ class ClaudeService:
 
     def _chat(self, prompt: str, max_tokens: int = 1500, system: str = "") -> str:
         """Uses startup-selected client. Retained for career chat history endpoint."""
-        if self.mode in ("cerebras", "nvidia", "groq", "together"):
+        if self.mode in ("cerebras", "gemini", "nvidia", "groq", "together"):
             msgs = []
             if system:
                 msgs.append({"role": "system", "content": system})
@@ -171,7 +196,18 @@ class ClaudeService:
                 logger.info("fast_chat: Cerebras (%s)", _CEREBRAS_FAST_MODEL)
                 return (r.choices[0].message.content or "").strip()
             except Exception as exc:
-                logger.warning("fast_chat: Cerebras failed (%s), trying Groq", exc)
+                logger.warning("fast_chat: Cerebras failed (%s), trying Gemini", exc)
+
+        if self._gemini_client:
+            try:
+                r = self._gemini_client.chat.completions.create(
+                    model=_GEMINI_FAST_MODEL, max_tokens=max_tokens,
+                    messages=[{"role": "user", "content": prompt}], timeout=30,
+                )
+                logger.info("fast_chat: Gemini (%s)", _GEMINI_FAST_MODEL)
+                return (r.choices[0].message.content or "").strip()
+            except Exception as exc:
+                logger.warning("fast_chat: Gemini failed (%s), trying Groq", exc)
 
         if self._groq_client:
             try:
@@ -224,7 +260,21 @@ class ClaudeService:
                 logger.info("quality_chat: Cerebras (%s)", _CEREBRAS_MODEL)
                 return (r.choices[0].message.content or "").strip()
             except Exception as exc:
-                logger.warning("quality_chat: Cerebras failed (%s), trying Groq", exc)
+                logger.warning("quality_chat: Cerebras failed (%s), trying Gemini", exc)
+
+        if self._gemini_client:
+            try:
+                msgs = []
+                if system:
+                    msgs.append({"role": "system", "content": system})
+                msgs.append({"role": "user", "content": prompt})
+                r = self._gemini_client.chat.completions.create(
+                    model=_GEMINI_MODEL, max_tokens=max_tokens, messages=msgs, timeout=60,
+                )
+                logger.info("quality_chat: Gemini (%s)", _GEMINI_MODEL)
+                return (r.choices[0].message.content or "").strip()
+            except Exception as exc:
+                logger.warning("quality_chat: Gemini failed (%s), trying Groq", exc)
 
         if self._groq_client:
             try:

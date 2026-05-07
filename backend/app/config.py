@@ -8,7 +8,8 @@ class Settings(BaseSettings):
     # Job sources
     adzuna_app_id: str = ""
     adzuna_api_key: str = ""
-    # AI providers — priority: cerebras → nvidia → groq → together → anthropic
+    # AI providers — priority: cerebras → gemini → nvidia → groq → together → anthropic
+    gemini_api_key: str = ""
     cerebras_api_key: str = ""
     together_api_key: str = ""
     tinyfish_api_key: str = ""
