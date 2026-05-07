@@ -434,7 +434,7 @@ def _fetch_jobicy(query_tokens: List[str]) -> List[Dict]:
             "title":     j.get("jobTitle", ""),
             "company":   j.get("companyName", ""),
             "location":  j.get("jobGeo", "Remote") or "Remote",
-            "salary":    j.get("annualSalaryMin", "") and f"${j['annualSalaryMin']:,}+" or "",
+            "salary":    (lambda s: f"${s:,}+" if isinstance(s, (int, float)) and s > 0 else "")(j.get("annualSalaryMin")),
             "tags":      tags,
             "url":       url,
             "posted_at": j.get("pubDate", ""),
@@ -666,6 +666,108 @@ def _fetch_jobicy_contract(query_tokens: List[str]) -> List[Dict]:
     return jobs
 
 
+def _fetch_arbeitnow(query_tokens: List[str]) -> List[Dict]:
+    """Arbeitnow — free job board API, no auth required, ~10K listings."""
+    try:
+        r = _HTTP.get("https://www.arbeitnow.com/api/job-board-api")
+        r.raise_for_status()
+        data = r.json()
+    except Exception as exc:
+        logger.debug("Arbeitnow failed: %s", exc)
+        return []
+
+    jobs = []
+    for j in data.get("data", []):
+        title = j.get("title", "")
+        if not _matches(title, query_tokens):
+            continue
+        url = j.get("url", "")
+        if not url:
+            continue
+        is_remote = bool(j.get("remote"))
+        location = "Remote" if is_remote else (j.get("location", "") or "Remote")
+        if not (is_remote or _is_usa_or_remote(location)):
+            continue
+        job_types = j.get("job_types") or []
+        tags = list({t for t in ((j.get("tags") or []) + job_types) if t})[:4]
+        jobs.append({
+            "title":     title,
+            "company":   j.get("company_name", ""),
+            "location":  location,
+            "salary":    "",
+            "tags":      tags,
+            "url":       url,
+            "posted_at": str(j.get("created_at", "")),
+            "source":    "Arbeitnow",
+            "ats":       "arbeitnow",
+        })
+    return jobs
+
+
+def _fetch_usajobs(query_tokens: List[str]) -> List[Dict]:
+    """USAJOBS — free federal government jobs API (~20K listings). Requires free key."""
+    from app.config import settings
+    api_key = (settings.usajobs_api_key or "").strip()
+    email   = (settings.usajobs_email   or "").strip()
+    if not api_key or not email:
+        return []
+
+    query_str = " ".join(query_tokens) or "software engineer"
+    try:
+        r = _HTTP.get(
+            "https://data.usajobs.gov/api/search",
+            params={"Keyword": query_str, "ResultsPerPage": 100, "RemoteIndicator": "True"},
+            headers={
+                "Host": "data.usajobs.gov",
+                "User-Agent": email,
+                "Authorization-Key": api_key,
+            },
+        )
+        r.raise_for_status()
+        data = r.json()
+    except Exception as exc:
+        logger.debug("USAJOBS failed: %s", exc)
+        return []
+
+    jobs = []
+    items = ((data.get("SearchResult") or {}).get("SearchResultItems")) or []
+    for item in items:
+        d = item.get("MatchedObjectDescriptor", {})
+        title = d.get("PositionTitle", "")
+        if not title:
+            continue
+        apply_uris = d.get("ApplyURI") or []
+        url = apply_uris[0] if apply_uris else ""
+        if not url:
+            continue
+        locations = d.get("PositionLocation") or []
+        location = locations[0].get("LocationName", "USA") if locations else "USA"
+        remunerations = d.get("PositionRemuneration") or []
+        salary = ""
+        if remunerations:
+            try:
+                sal_min = float(remunerations[0].get("MinimumRange", 0) or 0)
+                sal_max = float(remunerations[0].get("MaximumRange", 0) or 0)
+                if sal_min and sal_max:
+                    salary = f"${int(sal_min):,}–${int(sal_max):,}"
+                elif sal_min:
+                    salary = f"${int(sal_min):,}+"
+            except (TypeError, ValueError):
+                pass
+        jobs.append({
+            "title":     title,
+            "company":   d.get("OrganizationName", "U.S. Government"),
+            "location":  location,
+            "salary":    salary,
+            "tags":      ["government", "federal"],
+            "url":       url,
+            "posted_at": d.get("PublicationStartDate", ""),
+            "source":    "USAJOBS",
+            "ats":       "usajobs",
+        })
+    return jobs
+
+
 def _to_ts(posted_at: str) -> float:
     """Convert posted_at string to Unix timestamp for sorting. Missing = 0 (oldest)."""
     if not posted_at:
@@ -697,7 +799,7 @@ def _is_within_days(posted_at: str, days: int = 30) -> bool:
 def _fetch_all(query_tokens: List[str]) -> List[Dict]:
     """Fetch from all sources in parallel and return deduplicated jobs sorted newest-first."""
     all_jobs: List[Dict] = []
-    max_workers = len(GREENHOUSE_BOARDS) + len(LEVER_BOARDS) + len(ASHBY_BOARDS) + 6
+    max_workers = len(GREENHOUSE_BOARDS) + len(LEVER_BOARDS) + len(ASHBY_BOARDS) + 8
 
     with ThreadPoolExecutor(max_workers=min(max_workers, 8)) as pool:
         futures = {}
@@ -715,6 +817,8 @@ def _fetch_all(query_tokens: List[str]) -> List[Dict]:
         futures[pool.submit(_fetch_weworkremotely_contract, query_tokens)] = "_weworkremotely"
         futures[pool.submit(_fetch_adzuna, query_tokens)]               = "_adzuna"
         futures[pool.submit(_fetch_remoteok, query_tokens)]             = "_remoteok"
+        futures[pool.submit(_fetch_arbeitnow, query_tokens)]           = "_arbeitnow"
+        futures[pool.submit(_fetch_usajobs, query_tokens)]             = "_usajobs"
 
         for future in as_completed(futures):
             try:
