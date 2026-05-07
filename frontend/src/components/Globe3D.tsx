@@ -1,6 +1,6 @@
-import { useRef, useMemo, useState, Suspense } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Stars, Html, useTexture } from '@react-three/drei';
+import { useRef, useMemo, useState, useEffect } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { OrbitControls, Stars, Html } from '@react-three/drei';
 import * as THREE from 'three';
 
 export interface CityHub {
@@ -38,41 +38,65 @@ function latLngToVec3(lat: number, lng: number, r = 1): THREE.Vector3 {
   );
 }
 
-function CameraController({ targetPos }: { targetPos: THREE.Vector3 | null }) {
-  const { camera } = useThree();
-  const defaultPos = useRef(new THREE.Vector3(0, 0, 2.8));
+// Loads Earth texture directly via TextureLoader — no Suspense, graceful fallback
+function EarthMesh({ onReset }: { onReset: () => void }) {
+  const meshRef = useRef<THREE.Mesh>(null);
 
-  useFrame(() => {
-    const dest = targetPos
-      ? targetPos.clone().normalize().multiplyScalar(2.0)
-      : defaultPos.current;
-    camera.position.lerp(dest, 0.05);
-    camera.lookAt(0, 0, 0);
-  });
+  useEffect(() => {
+    const loader = new THREE.TextureLoader();
+    loader.crossOrigin = 'anonymous';
+    const URLS = [
+      'https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-dark.jpg',
+      'https://unpkg.com/three-globe/example/img/earth-dark.jpg',
+      'https://raw.githubusercontent.com/vasturiano/three-globe/master/example/img/earth-dark.jpg',
+    ];
+    let idx = 0;
+    const tryNext = () => {
+      if (idx >= URLS.length) return;
+      loader.load(
+        URLS[idx++],
+        (tex) => {
+          const mat = meshRef.current?.material as THREE.MeshStandardMaterial | undefined;
+          if (mat) { mat.map = tex; mat.color.set('#ffffff'); mat.needsUpdate = true; }
+        },
+        undefined,
+        () => tryNext(),
+      );
+    };
+    tryNext();
+  }, []);
 
-  return null;
+  return (
+    <mesh ref={meshRef} onDoubleClick={(e) => { e.stopPropagation(); onReset(); }}>
+      <sphereGeometry args={[1, 64, 64]} />
+      <meshStandardMaterial color="#0d2c1a" roughness={0.8} metalness={0.05} />
+    </mesh>
+  );
 }
 
-function PulsingDot({
-  position, size, isSelected, hub, onSelect, onReset,
+function CityPin({
+  hub, position, size, isSelected, isHovered,
+  onSelect, onHover, onUnhover,
 }: {
+  hub: CityHub;
   position: THREE.Vector3;
   size: number;
   isSelected: boolean;
-  hub: CityHub;
+  isHovered: boolean;
   onSelect: () => void;
-  onReset: () => void;
+  onHover: () => void;
+  onUnhover: () => void;
 }) {
   const ringRef = useRef<THREE.Mesh>(null);
   const t = useRef(Math.random() * Math.PI * 2);
 
   useFrame((_, delta) => {
-    t.current += delta * (isSelected ? 3 : 1.8);
+    t.current += delta * (isSelected ? 2.5 : 1.6);
     if (ringRef.current) {
-      const scale = 1 + Math.sin(t.current) * (isSelected ? 0.7 : 0.4);
+      const scale = 1 + Math.sin(t.current) * (isSelected ? 0.6 : 0.35);
       ringRef.current.scale.setScalar(scale);
       const mat = ringRef.current.material as THREE.MeshBasicMaterial;
-      mat.opacity = (isSelected ? 0.85 : 0.5) - Math.sin(t.current) * 0.35;
+      mat.opacity = (isSelected ? 0.85 : isHovered ? 0.65 : 0.42) - Math.sin(t.current) * 0.28;
     }
   });
 
@@ -80,34 +104,36 @@ function PulsingDot({
     <group position={position}>
       <mesh
         onClick={(e) => { e.stopPropagation(); onSelect(); }}
-        onDoubleClick={(e) => { e.stopPropagation(); onReset(); }}
+        onPointerOver={(e) => { e.stopPropagation(); onHover(); }}
+        onPointerOut={(e) => { e.stopPropagation(); onUnhover(); }}
       >
-        <sphereGeometry args={[size * (isSelected ? 1.9 : 1), 10, 10]} />
-        <meshBasicMaterial color={isSelected ? '#F59E0B' : '#4ade80'} />
+        <sphereGeometry args={[size * (isSelected ? 1.9 : isHovered ? 1.5 : 1), 12, 12]} />
+        <meshBasicMaterial color={isSelected ? '#F59E0B' : isHovered ? '#86efac' : '#4ade80'} />
       </mesh>
       <mesh ref={ringRef}>
-        <sphereGeometry args={[size * 2.6, 10, 10]} />
+        <sphereGeometry args={[size * 2.8, 12, 12]} />
         <meshBasicMaterial color={isSelected ? '#FCD34D' : '#16a34a'} transparent opacity={0.4} />
       </mesh>
-      <Html center position={[0, size * 6, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-        <div style={{
-          background: isSelected ? 'rgba(245,158,11,0.96)' : 'rgba(0,0,0,0.72)',
-          color: '#fff',
-          padding: '3px 9px',
-          borderRadius: '14px',
-          fontSize: '10px',
-          fontWeight: 700,
-          whiteSpace: 'nowrap',
-          fontFamily: 'Inter, sans-serif',
-          border: `1px solid ${isSelected ? '#FCD34D55' : 'rgba(74,222,128,0.4)'}`,
-          opacity: isSelected ? 1 : 0.82,
-          boxShadow: isSelected ? '0 0 16px rgba(245,158,11,0.6)' : 'none',
-          transition: 'all 0.3s',
-          letterSpacing: '0.02em',
-        }}>
-          {isSelected ? '📍 ' : ''}{hub.name} · {hub.jobs}+ jobs
-        </div>
-      </Html>
+      {/* Label only on hover or selection — no overlap spam */}
+      {(isSelected || isHovered) && (
+        <Html center position={[0, size * 7, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+          <div style={{
+            background: isSelected ? 'rgba(245,158,11,0.96)' : 'rgba(0,0,0,0.85)',
+            color: '#fff',
+            padding: '4px 11px',
+            borderRadius: '14px',
+            fontSize: '11px',
+            fontWeight: 700,
+            whiteSpace: 'nowrap',
+            fontFamily: 'Inter, sans-serif',
+            border: `1px solid ${isSelected ? '#FCD34D88' : 'rgba(74,222,128,0.5)'}`,
+            boxShadow: isSelected ? '0 0 16px rgba(245,158,11,0.5)' : '0 2px 8px rgba(0,0,0,0.5)',
+            letterSpacing: '0.02em',
+          }}>
+            {isSelected ? '📍 ' : ''}{hub.name} · {hub.jobs}+ jobs
+          </div>
+        </Html>
+      )}
     </group>
   );
 }
@@ -116,57 +142,24 @@ function Arc({ from, to }: { from: THREE.Vector3; to: THREE.Vector3 }) {
   const lineObj = useMemo(() => {
     const mid = from.clone().add(to).normalize().multiplyScalar(1.4);
     const curve = new THREE.QuadraticBezierCurve3(from, mid, to);
-    const points = curve.getPoints(40);
-    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    const material = new THREE.LineBasicMaterial({ color: '#4ade80', transparent: true, opacity: 0.3 });
+    const geometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(40));
+    const material = new THREE.LineBasicMaterial({ color: '#4ade80', transparent: true, opacity: 0.2 });
     return new THREE.Line(geometry, material);
   }, [from, to]);
   return <primitive object={lineObj} />;
 }
 
-// Real Earth texture sphere — suspends while texture loads
-function EarthSphere({ onReset }: { onReset: () => void }) {
-  // Free NASA-based Earth texture via unpkg CDN (no cost, no API key)
-  const texture = useTexture('https://unpkg.com/three-globe/example/img/earth-dark.jpg');
-  return (
-    <mesh onDoubleClick={(e) => { e.stopPropagation(); onReset(); }}>
-      <sphereGeometry args={[1, 64, 64]} />
-      <meshStandardMaterial
-        map={texture}
-        roughness={0.85}
-        metalness={0.05}
-      />
-    </mesh>
-  );
-}
-
-// Fallback shown while texture downloads
-function EarthFallback({ onReset }: { onReset: () => void }) {
-  return (
-    <mesh onDoubleClick={(e) => { e.stopPropagation(); onReset(); }}>
-      <sphereGeometry args={[1, 64, 64]} />
-      <meshPhongMaterial color="#0b2416" emissive="#0a1f12" specular="#16a34a" shininess={30} />
-    </mesh>
-  );
-}
-
-function GlobeMesh({
-  selectedCity,
-  onCitySelect,
-  onReset,
+function GlobeScene({
+  selectedCity, hoveredCity,
+  onCitySelect, onCityHover, onCityUnhover, onReset,
 }: {
   selectedCity: string | null;
+  hoveredCity: string | null;
   onCitySelect: (hub: CityHub) => void;
+  onCityHover: (name: string) => void;
+  onCityUnhover: () => void;
   onReset: () => void;
 }) {
-  const groupRef = useRef<THREE.Group>(null);
-
-  useFrame((_, delta) => {
-    if (groupRef.current && !selectedCity) {
-      groupRef.current.rotation.y += delta * 0.1;
-    }
-  });
-
   const dotData = useMemo(() =>
     GLOBE_CITIES.map(h => ({
       ...h,
@@ -180,34 +173,27 @@ function GlobeMesh({
   }, [dotData]);
 
   return (
-    <group ref={groupRef}>
-      {/* Real world map texture — falls back to dark sphere while loading */}
-      <Suspense fallback={<EarthFallback onReset={onReset} />}>
-        <EarthSphere onReset={onReset} />
-      </Suspense>
-
-      {/* Subtle green wireframe grid overlay */}
+    <>
+      <EarthMesh onReset={onReset} />
       <mesh>
         <sphereGeometry args={[1.003, 36, 18]} />
         <meshBasicMaterial color="#4ade80" wireframe transparent opacity={0.04} />
       </mesh>
-
-      {/* City pins */}
+      {arcs.map((a, i) => <Arc key={i} from={a.from} to={a.to} />)}
       {dotData.map((d, i) => (
-        <PulsingDot
+        <CityPin
           key={i}
+          hub={d}
           position={d.pos}
           size={d.size}
           isSelected={selectedCity === d.name}
-          hub={d}
+          isHovered={hoveredCity === d.name}
           onSelect={() => onCitySelect(d)}
-          onReset={onReset}
+          onHover={() => onCityHover(d.name)}
+          onUnhover={onCityUnhover}
         />
       ))}
-
-      {/* Connection arcs from SF to major hubs */}
-      {arcs.map((a, i) => <Arc key={i} from={a.from} to={a.to} />)}
-    </group>
+    </>
   );
 }
 
@@ -217,12 +203,13 @@ interface Globe3DProps {
 
 export default function Globe3D({ onCitySelect }: Globe3DProps) {
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
+  const [hoveredCity, setHoveredCity] = useState<string | null>(null);
 
-  const selectedCityPos = useMemo(() => {
-    if (!selectedCity) return null;
-    const hub = GLOBE_CITIES.find(h => h.name === selectedCity);
-    return hub ? latLngToVec3(hub.lat, hub.lng, 1.015) : null;
-  }, [selectedCity]);
+  // Pointer cursor when hovering a city pin
+  useEffect(() => {
+    document.body.style.cursor = hoveredCity ? 'pointer' : 'default';
+    return () => { document.body.style.cursor = 'default'; };
+  }, [hoveredCity]);
 
   const handleSelect = (hub: CityHub) => {
     setSelectedCity(hub.name);
@@ -231,28 +218,33 @@ export default function Globe3D({ onCitySelect }: Globe3DProps) {
 
   const handleReset = () => {
     setSelectedCity(null);
+    setHoveredCity(null);
     onCitySelect?.(null);
   };
 
   return (
     <Canvas camera={{ position: [0, 0, 2.8], fov: 42 }} style={{ background: 'transparent' }}>
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[5, 3, 5]}   intensity={1.0} color="#ffffff" />
-      <directionalLight position={[-3, -2, -2]} intensity={0.3} color="#86efac" />
+      <ambientLight intensity={0.5} />
+      <directionalLight position={[2, 1, 2]} intensity={1.1} color="#ffffff" />
+      <directionalLight position={[-2, -1, -2]} intensity={0.2} color="#86efac" />
       <Stars radius={120} depth={60} count={3000} factor={3} saturation={0} fade speed={0.4} />
-      <CameraController targetPos={selectedCityPos} />
-      <GlobeMesh
+      <GlobeScene
         selectedCity={selectedCity}
+        hoveredCity={hoveredCity}
         onCitySelect={handleSelect}
+        onCityHover={(name) => setHoveredCity(name)}
+        onCityUnhover={() => setHoveredCity(null)}
         onReset={handleReset}
       />
+      {/* Full 360° drag + auto-rotate. Double-click globe to reset. */}
       <OrbitControls
-        enabled={!selectedCity}
         enableZoom={false}
         enablePan={false}
-        minPolarAngle={Math.PI / 5}
-        maxPolarAngle={(4 * Math.PI) / 5}
-        rotateSpeed={0.5}
+        autoRotate={!selectedCity}
+        autoRotateSpeed={1.2}
+        rotateSpeed={0.6}
+        minPolarAngle={0}
+        maxPolarAngle={Math.PI}
       />
     </Canvas>
   );
